@@ -2,14 +2,25 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { AmbientWave } from './components/AmbientWave'
 import { CollapsibleSlot } from './components/CollapsibleSlot'
+import { ExpandChevron } from './components/ExpandChevron'
 import { Gauge } from './components/Gauge'
+import { HistoryPanel } from './components/HistoryPanel'
 import { StatusBar } from './components/StatusBar'
 import { ToggleSwitch } from './components/ToggleSwitch'
 import { getSettings, refreshUsage, setAlwaysOnTop as setAlwaysOnTopSetting, type UsageReport } from './lib/api'
 import { formatResetsAt, formatResetsIn } from './lib/format'
 import { useElementHeight } from './lib/useElementHeight'
+import { animateWindowResizeWithPanel, getLogicalWindowSize } from './lib/windowResize'
 
 const POLL_MS = 5 * 60 * 1000
+// The History panel's fully-open height — both the target for the window-resize delta
+// and the ceiling `historyHeight` animates to/from (see toggleExpanded). A fixed target
+// rather than measuring it, unlike Weekly's slot: Weekly has to gracefully disappear
+// under a resize the *user* drives directly (dragging the window edge), so it needs live
+// measurement; this panel's size is one App already controls both ends of, since it
+// drives the resize itself.
+const HISTORY_PANEL_HEIGHT = 210
+const MIN_WINDOW_HEIGHT = 160
 
 export function App() {
   const [report, setReport] = useState<UsageReport | null>(null)
@@ -56,6 +67,37 @@ export function App() {
     void setAlwaysOnTopSetting(next)
   }, [])
 
+  // historyHeight (not a boolean) drives both the panel's own CSS height and the Weekly
+  // arithmetic below, animated in lockstep with the window resize — see
+  // animateWindowResizeWithPanel's doc comment for why: growing the panel to its full
+  // height instantly, before the window itself has grown to match, briefly starves
+  // Weekly of space and makes it flicker out and back in.
+  const [historyHeight, setHistoryHeight] = useState(0)
+  const expanded = historyHeight > 0
+  const animatingRef = useRef(false)
+
+  const toggleExpanded = useCallback(async () => {
+    if (animatingRef.current) return
+    animatingRef.current = true
+    try {
+      const { width, height } = await getLogicalWindowSize()
+      if (!expanded) {
+        const targetWinHeight = height + HISTORY_PANEL_HEIGHT
+        await animateWindowResizeWithPanel(width, height, targetWinHeight, 0, HISTORY_PANEL_HEIGHT, setHistoryHeight)
+      } else {
+        const targetWinHeight = Math.max(height - HISTORY_PANEL_HEIGHT, MIN_WINDOW_HEIGHT)
+        await animateWindowResizeWithPanel(width, height, targetWinHeight, HISTORY_PANEL_HEIGHT, 0, setHistoryHeight)
+      }
+    } catch {
+      // The window-sizing calls only fail outside a real Tauri window (there's no
+      // native window to measure or resize); fail soft to a plain toggle rather than
+      // leave the panel stuck mid-transition or the click silently doing nothing.
+      setHistoryHeight((h) => (h > 0 ? 0 : HISTORY_PANEL_HEIGHT))
+    } finally {
+      animatingRef.current = false
+    }
+  }, [expanded])
+
   const usage = report?.usage ?? null
   const status = report?.status ?? { kind: 'ok' as const }
   const showEmptyState = !usage && (status.kind === 'no_credentials' || status.kind === 'token_expired')
@@ -69,9 +111,10 @@ export function App() {
   const [mainRef, mainH] = useElementHeight<HTMLDivElement>()
   const [headerRef, headerH] = useElementHeight<HTMLDivElement>()
   const [sessionRef, sessionH] = useElementHeight<HTMLDivElement>()
+  const [chevronRef, chevronH] = useElementHeight<HTMLDivElement>()
   const [footerRef, footerH] = useElementHeight<HTMLDivElement>()
 
-  const weeklyHeight = mainH - headerH - sessionH - footerH
+  const weeklyHeight = mainH - headerH - sessionH - chevronH - historyHeight - footerH
 
   return (
     <div className="h-full p-1.5">
@@ -130,6 +173,16 @@ export function App() {
                 size="secondary"
               />
             </CollapsibleSlot>
+
+            <div ref={chevronRef}>
+              <ExpandChevron expanded={expanded} onToggle={() => void toggleExpanded()} />
+            </div>
+
+            {historyHeight > 0 && (
+              <div className="relative z-10 overflow-hidden" style={{ height: historyHeight }}>
+                <HistoryPanel />
+              </div>
+            )}
           </>
         )}
 

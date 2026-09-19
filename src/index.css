@@ -17,6 +17,18 @@
   --color-accent-subtle: rgba(61, 127, 255, 0.12);
   --color-caution: #f0b429;
   --color-danger: #e5604f;
+
+  /* Categorical chart palette (History panel). Validated with the dataviz skill's
+     validate_palette.js against this app's dark surface (#0f131b): all pairs clear
+     the CVD-separation and normal-vision floors. --chart-series-1 intentionally
+     equals --color-accent (CONTO's brand blue) rather than a separate value, so the
+     Session line and the app's own accent stay the same blue everywhere. Slots 2/3
+     are deliberately NOT --color-caution/--color-danger — those are reserved status
+     colors (gauge thresholds) and must never double as "just series 2". */
+  --chart-series-1: #3d7fff;
+  --chart-series-2: #199e70;
+  --chart-series-3: #d95926;
+  --chart-grid: #1c2330;
   color-scheme: dark;
 }
 
