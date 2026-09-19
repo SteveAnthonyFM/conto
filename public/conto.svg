@@ -1,12 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- Inset ~19.5% from each edge so the rendered app icon carries the same margin as a
-       stock macOS "squircle" icon (Finder, Terminal, System Settings, …). Without this
-       the artwork below fills the full 1024x1024 canvas and looks oversized in the Dock
-       next to icons that already bake this padding in. -->
-  <g transform="translate(100 100) scale(0.8046875)">
-    <rect width="1024" height="1024" rx="230" fill="#0f131b"/>
-    <rect x="24" y="24" width="976" height="976" rx="206" fill="none" stroke="#3d7fff" stroke-opacity=".35" stroke-width="12"/>
-    <path d="M 690 300 A 260 260 0 1 0 690 724" fill="none" stroke="#3d7fff" stroke-width="84" stroke-linecap="round"/>
-    <circle cx="690" cy="512" r="46" fill="#eef1f6"/>
-  </g>
+  <!-- Per Apple's current HIG (developer.apple.com/design/human-interface-guidelines/app-icons):
+       "provide square layers so the system can apply rounded corners" — macOS masks every
+       app icon itself. Baking in our own rounded corners here would get masked a second
+       time by the OS, on top of whatever inset we chose, which is what made this icon read
+       as "too big" (full-bleed, no inset) and then "too small" (20% inset) in earlier passes.
+       So: full-bleed, unrounded, opaque square background; content doesn't need to fill the
+       canvas, it just needs breathing room within it. -->
+  <rect width="1024" height="1024" fill="#0f131b"/>
+  <!-- Purely decorative interior accent, well inside the safe area — unrelated to masking. -->
+  <rect x="72" y="72" width="880" height="880" rx="196" fill="none" stroke="#3d7fff" stroke-opacity=".3" stroke-width="10"/>
+  <path d="M 690 300 A 260 260 0 1 0 690 724" fill="none" stroke="#3d7fff" stroke-width="84" stroke-linecap="round"/>
+  <circle cx="690" cy="512" r="46" fill="#eef1f6"/>
 </svg>
