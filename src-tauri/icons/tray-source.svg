@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="55 35 950 950">
+  <!-- The ring+dot glyph from conto.svg, recolored solid black for a macOS menu-bar
+       "template" image (the OS derives light/dark rendering from this shape's alpha
+       channel — color is ignored once icon_as_template is set). Unlike the Dock icon,
+       menu-bar/status icons get no automatic OS padding or masking — whatever's in this
+       canvas is shown edge-to-edge at the status item's size, so the glyph itself needs
+       real breathing room baked in (~66% fill here) or it reads as oversized next to
+       Apple's own menu-bar glyphs, which are comparatively small marks with a lot of
+       surrounding margin. A first pass with a tight bounding-box crop (no margin) did
+       exactly that. -->
+  <path d="M 690 300 A 260 260 0 1 0 690 724" fill="none" stroke="#000000" stroke-width="84" stroke-linecap="round"/>
+  <circle cx="690" cy="512" r="46" fill="#000000"/>
+</svg>

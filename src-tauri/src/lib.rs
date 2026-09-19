@@ -1,13 +1,15 @@
 mod credentials;
 mod local;
+mod settings;
 mod store;
+mod tray;
 mod usage;
 
 use credentials::CredError;
 use serde::Serialize;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use tauri::Manager;
+use tauri::{Manager, WindowEvent};
 use usage::{FetchError, Usage};
 
 /// Manual refreshes within this window return the cached reading instead of re-calling the API.
@@ -50,6 +52,7 @@ struct Cache {
 #[derive(Default)]
 struct AppState {
     cache: Mutex<Cache>,
+    tray: Mutex<Option<tauri::tray::TrayIcon>>,
 }
 
 fn now_secs() -> i64 {
@@ -117,9 +120,33 @@ fn data_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
 async fn refresh_usage(app: tauri::AppHandle, force: bool) -> Result<UsageReport, String> {
     let file = store::file_in(&data_dir(&app));
     let app2 = app.clone();
-    tauri::async_runtime::spawn_blocking(move || refresh(&app2.state::<AppState>(), &file, force))
+    let report = tauri::async_runtime::spawn_blocking(move || refresh(&app2.state::<AppState>(), &file, force))
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    if let Some(t) = app.state::<AppState>().tray.lock().unwrap().as_ref() {
+        tray::update(t, &report);
+    }
+    Ok(report)
+}
+
+#[tauri::command]
+async fn get_settings(app: tauri::AppHandle) -> settings::Settings {
+    settings::load(&settings::file_in(&data_dir(&app)))
+}
+
+/// Applies and persists the Always on Top preference in one step, so the toggle survives
+/// a relaunch (window position/size are handled separately by tauri-plugin-window-state).
+#[tauri::command]
+async fn set_always_on_top(app: tauri::AppHandle, value: bool) -> Result<settings::Settings, String> {
+    let window = app.get_webview_window("main").ok_or("main window not found")?;
+    window.set_always_on_top(value).map_err(|e| e.to_string())?;
+
+    let file = settings::file_in(&data_dir(&app));
+    let mut s = settings::load(&file);
+    s.always_on_top = value;
+    settings::save(&file, &s).map_err(|e| e.to_string())?;
+    Ok(s)
 }
 
 /// Saved readings (utilization % over time) at or after `since` unix seconds.
@@ -138,12 +165,46 @@ async fn get_local_usage(since: i64) -> Result<Vec<local::Bucket>, String> {
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
+        // Only position/size are restored across launches — not visibility, so quitting
+        // while the window is hidden in the tray doesn't leave it hidden on next launch.
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(tauri_plugin_window_state::StateFlags::POSITION | tauri_plugin_window_state::StateFlags::SIZE)
+                .build(),
+        )
         .manage(AppState::default())
         .setup(|app| {
-            store::prune(&store::file_in(&data_dir(app.handle())), now_secs());
+            let handle = app.handle();
+            store::prune(&store::file_in(&data_dir(handle)), now_secs());
+
+            let saved = settings::load(&settings::file_in(&data_dir(handle)));
+            let window = handle.get_webview_window("main").expect("main window must exist");
+            let _ = window.set_always_on_top(saved.always_on_top);
+
+            // The card's own Close button and the window's native close control both hide
+            // the window rather than quitting — CONTO keeps running via the tray icon,
+            // which is what brings it back (see tray.rs).
+            let win_to_hide = window.clone();
+            window.on_window_event(move |event| {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = win_to_hide.hide();
+                }
+            });
+
+            let tray_icon = tray::build(handle)?;
+            *app.state::<AppState>().tray.lock().unwrap() = Some(tray_icon);
+
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![refresh_usage, get_snapshots, get_local_usage])
+        .invoke_handler(tauri::generate_handler![
+            refresh_usage,
+            get_snapshots,
+            get_local_usage,
+            get_settings,
+            set_always_on_top
+        ])
         .run(tauri::generate_context!())
         .expect("error while running CONTO");
 }

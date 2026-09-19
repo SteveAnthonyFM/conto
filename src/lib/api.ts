@@ -59,3 +59,15 @@ export function getSnapshots(since: number): Promise<Snapshot[]> {
 export function getLocalUsage(since: number): Promise<LocalBucket[]> {
   return invoke('get_local_usage', { since })
 }
+
+export interface Settings {
+  always_on_top: boolean
+}
+
+export function getSettings(): Promise<Settings> {
+  return invoke('get_settings')
+}
+
+export function setAlwaysOnTop(value: boolean): Promise<Settings> {
+  return invoke('set_always_on_top', { value })
+}

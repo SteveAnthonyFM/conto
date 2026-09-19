@@ -5,7 +5,7 @@ import { CollapsibleSlot } from './components/CollapsibleSlot'
 import { Gauge } from './components/Gauge'
 import { StatusBar } from './components/StatusBar'
 import { ToggleSwitch } from './components/ToggleSwitch'
-import { refreshUsage, type UsageReport } from './lib/api'
+import { getSettings, refreshUsage, setAlwaysOnTop as setAlwaysOnTopSetting, type UsageReport } from './lib/api'
 import { formatResetsAt, formatResetsIn } from './lib/format'
 import { useElementHeight } from './lib/useElementHeight'
 
@@ -45,9 +45,15 @@ export function App() {
     }
   }, [load])
 
+  // Always on Top is applied and persisted on the Rust side (set_always_on_top), so it
+  // survives a relaunch — this just seeds the toggle's initial state from disk.
+  useEffect(() => {
+    void getSettings().then((s) => setAlwaysOnTop(s.always_on_top))
+  }, [])
+
   const toggleAlwaysOnTop = useCallback((next: boolean) => {
     setAlwaysOnTop(next)
-    void getCurrentWindow().setAlwaysOnTop(next)
+    void setAlwaysOnTopSetting(next)
   }, [])
 
   const usage = report?.usage ?? null
