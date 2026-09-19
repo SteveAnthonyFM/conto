@@ -1,16 +1,16 @@
-import { percentColor, formatResetsIn } from '../lib/format'
+import { percentColor } from '../lib/format'
 
 interface GaugeProps {
   label: string
   percent: number | null
-  resetsAt: string | null
+  /** Pre-formatted reset label — the caller picks the right formatter per window. */
+  resetsLabel: string | null
   size: 'primary' | 'secondary'
 }
 
-export function Gauge({ label, percent, resetsAt, size }: GaugeProps) {
+export function Gauge({ label, percent, resetsLabel, size }: GaugeProps) {
   const pct = percent ?? 0
   const color = percent === null ? 'var(--color-text-muted)' : percentColor(pct)
-  const resetsLabel = formatResetsIn(resetsAt)
   const isPrimary = size === 'primary'
 
   return (

@@ -5,6 +5,7 @@ import { Gauge } from './components/Gauge'
 import { StatusBar } from './components/StatusBar'
 import { ToggleSwitch } from './components/ToggleSwitch'
 import { refreshUsage, type UsageReport } from './lib/api'
+import { formatResetsAt, formatResetsIn } from './lib/format'
 
 const POLL_MS = 5 * 60 * 1000
 
@@ -56,9 +57,14 @@ export function App() {
       <main className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
         <AmbientWave />
 
-        <header data-tauri-drag-region className="relative z-10 flex items-center justify-between px-4 pt-3.5">
-          <h1 className="font-display text-[15px] font-bold tracking-[0.18em]">CONTO</h1>
-          <ToggleSwitch checked={alwaysOnTop} onChange={toggleAlwaysOnTop} label="Always on top" />
+        <header data-tauri-drag-region className="relative z-10 flex items-start justify-between px-4 pt-2.5">
+          <h1 className="pt-0.5 font-display text-[15px] font-bold tracking-[0.18em]">CONTO</h1>
+          <div className="flex flex-col items-end gap-1">
+            <ToggleSwitch checked={alwaysOnTop} onChange={toggleAlwaysOnTop} label="Always on top" />
+            <span className="text-[9px] font-medium uppercase tracking-wide text-[var(--color-text-muted)] opacity-70">
+              Always on Top
+            </span>
+          </div>
         </header>
 
         {showEmptyState ? (
@@ -73,17 +79,17 @@ export function App() {
             </p>
           </div>
         ) : (
-          <div className="relative z-10 flex flex-1 flex-col justify-center gap-4 px-4 pt-2">
+          <div className="relative z-10 -mt-1 flex flex-col gap-3 px-4">
             <Gauge
               label="Session (5h)"
               percent={usage?.five_hour?.utilization ?? null}
-              resetsAt={usage?.five_hour?.resets_at ?? null}
+              resetsLabel={formatResetsIn(usage?.five_hour?.resets_at ?? null)}
               size="primary"
             />
             <Gauge
               label="Weekly"
               percent={usage?.seven_day?.utilization ?? null}
-              resetsAt={usage?.seven_day?.resets_at ?? null}
+              resetsLabel={formatResetsAt(usage?.seven_day?.resets_at ?? null)}
               size="secondary"
             />
           </div>

@@ -16,8 +16,10 @@
         "label": "main",
         "title": "CONTO",
         "width": 372,
-        "height": 318,
-        "resizable": false,
+        "height": 238,
+        "minWidth": 320,
+        "minHeight": 190,
+        "resizable": true,
         "decorations": false,
         "transparent": true,
         "shadow": false

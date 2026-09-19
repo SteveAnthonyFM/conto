@@ -32,7 +32,7 @@ export function StatusBar({ status, fetchedAt, refreshing, onRefresh, onClose }:
   const message = status.kind === 'offline' || status.kind === 'error' ? status.message : STATUS_LABEL[status.kind]
 
   return (
-    <div className="relative z-10 mt-auto flex items-center gap-2 border-t border-[var(--color-border)] px-3 py-2">
+    <div className="relative z-10 mt-auto flex items-center gap-2 border-t border-[var(--color-border)] px-3 py-1.5">
       <span
         className="h-[7px] w-[7px] shrink-0 rounded-full"
         style={{ backgroundColor: DOT_COLOR[status.kind] }}

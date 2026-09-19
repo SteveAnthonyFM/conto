@@ -24,18 +24,48 @@ export function percentColor(pct: number): string {
   return `rgb(${STOPS[0][1].join(', ')})`
 }
 
-/** "resets in 4h 36m" style label, or null once the window has already reset. */
+/** "Resets in 4h 36m" style label, for the short session window. Null once it has reset. */
 export function formatResetsIn(resetsAt: string | null | undefined, now = Date.now()): string | null {
   if (!resetsAt) return null
   const target = Date.parse(resetsAt)
   if (Number.isNaN(target)) return null
   const diffMs = target - now
-  if (diffMs <= 0) return 'resets shortly'
+  if (diffMs <= 0) return 'Resets shortly'
   const totalMinutes = Math.round(diffMs / 60000)
   const hours = Math.floor(totalMinutes / 60)
   const minutes = totalMinutes % 60
-  if (hours === 0) return `resets in ${minutes}m`
-  return `resets in ${hours}h ${minutes}m`
+  if (hours === 0) return `Resets in ${minutes}m`
+  return `Resets in ${hours}h ${minutes}m`
+}
+
+function formatClockTime(d: Date): string {
+  const hour24 = d.getHours()
+  const ampm = hour24 >= 12 ? 'pm' : 'am'
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12
+  const minutes = d.getMinutes().toString().padStart(2, '0')
+  return `${hour12}:${minutes}${ampm}`
+}
+
+function startOfDay(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+}
+
+const weekdayFormatter = new Intl.DateTimeFormat(undefined, { weekday: 'long' })
+const weekdayDateFormatter = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
+
+/**
+ * "Resets Wednesday at 12:00pm" style label for the longer weekly window — an absolute
+ * day and time reads better than a multi-day countdown. Built from `Date`'s local
+ * getters (getHours/getFullYear/…), so it reflects the OS's current timezone and DST
+ * state rather than a fixed offset.
+ */
+export function formatResetsAt(resetsAt: string | null | undefined, now = new Date()): string | null {
+  if (!resetsAt) return null
+  const target = new Date(resetsAt)
+  if (Number.isNaN(target.getTime())) return null
+  const diffDays = Math.round((startOfDay(target) - startOfDay(now)) / 86_400_000)
+  const day = diffDays === 0 ? 'today' : diffDays === 1 ? 'tomorrow' : diffDays > 1 && diffDays < 7 ? weekdayFormatter.format(target) : weekdayDateFormatter.format(target)
+  return `Resets ${day} at ${formatClockTime(target)}`
 }
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
