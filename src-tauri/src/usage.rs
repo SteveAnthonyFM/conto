@@ -7,7 +7,7 @@ use std::time::Duration;
 const URL: &str = "https://api.anthropic.com/api/oauth/usage";
 // Without a `claude-code/` User-Agent this endpoint puts callers in an aggressive
 // rate-limit bucket. The version is cosmetic; bump it if requests start failing.
-const USER_AGENT: &str = "claude-code/2.1.0";
+const USER_AGENT: &str = "claude-code/2.1.278";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Window {
