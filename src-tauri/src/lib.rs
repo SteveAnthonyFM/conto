@@ -173,3 +173,4 @@ mod tests {
         println!("local: {} hourly buckets, {} requests in last 7d", buckets.len(), reqs);
     }
 }
+

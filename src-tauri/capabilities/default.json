@@ -3,5 +3,11 @@
   "identifier": "default",
   "description": "Permissions for the main CONTO window",
   "windows": ["main"],
-  "permissions": ["core:default", "core:window:allow-start-dragging", "core:window:allow-close"]
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-close",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-minimize"
+  ]
 }
