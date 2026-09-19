@@ -1,0 +1,47 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Palanquin', system-ui, 'Segoe UI', sans-serif;
+  --font-display: 'Palanquin Dark', system-ui, sans-serif;
+}
+
+/* Design tokens carried over from Studiolo (dark-first). */
+:root {
+  --color-bg: #070a10;
+  --color-surface: #0f131b;
+  --color-chip-bg: #151b26;
+  --color-border: rgba(70, 130, 255, 0.16);
+  --color-text: #eef1f6;
+  --color-text-muted: #7c8494;
+  --color-accent: #3d7fff;
+  --color-accent-subtle: rgba(61, 127, 255, 0.12);
+  --color-caution: #f0b429;
+  --color-danger: #e5604f;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* Transparent so the rounded card can float on the desktop. */
+body {
+  margin: 0;
+  background: transparent;
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+  overflow: hidden;
+}
+
+button {
+  font-family: inherit;
+}
