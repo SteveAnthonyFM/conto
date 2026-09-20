@@ -49,7 +49,7 @@ export interface LocalBucket {
 }
 
 export function refreshUsage(force: boolean): Promise<UsageReport> {
-  return invoke('refresh_usage', { force })
+  return invoke('refresh_usage', { force, userAgent: navigator.userAgent })
 }
 
 export function getSnapshots(since: number): Promise<Snapshot[]> {

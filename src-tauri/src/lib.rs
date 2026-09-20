@@ -142,7 +142,10 @@ fn data_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
 }
 
 #[tauri::command]
-async fn refresh_usage(app: tauri::AppHandle, force: bool) -> Result<UsageReport, String> {
+async fn refresh_usage(app: tauri::AppHandle, force: bool, user_agent: Option<String>) -> Result<UsageReport, String> {
+    if let Some(ua) = user_agent {
+        webauth::set_user_agent(&ua);
+    }
     let file = store::file_in(&data_dir(&app));
     let app2 = app.clone();
     let report = tauri::async_runtime::spawn_blocking(move || refresh(Some(&app2), &app2.state::<AppState>(), &file, force))

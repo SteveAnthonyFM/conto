@@ -7,7 +7,7 @@
 //! sent only to claude.ai. It is never logged. The endpoint is unofficial and may change.
 
 use crate::usage::{parse_usage, FetchError, Usage};
-use std::sync::mpsc;
+use std::sync::{mpsc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
@@ -15,8 +15,25 @@ use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 const BASE: &str = "https://claude.ai";
 const LOGIN_LABEL: &str = "web-login";
 const CALLBACK_HOST: &str = "conto-callback.invalid";
-const USER_AGENT: &str =
+/// Fallback only; the real one comes from the webview via `set_user_agent`.
+const FALLBACK_USER_AGENT: &str =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15";
+
+/// The webview's own User-Agent. Cloudflare ties its clearance cookie to the browser's UA,
+/// so plain HTTP requests must send the same one the webview used to earn it.
+static WEBVIEW_UA: Mutex<Option<String>> = Mutex::new(None);
+
+pub fn set_user_agent(ua: &str) {
+    let ua = ua.trim();
+    if ua.is_empty() || ua.len() > 400 || !ua.chars().all(|c| (' '..='~').contains(&c)) {
+        return;
+    }
+    *WEBVIEW_UA.lock().unwrap() = Some(ua.to_string());
+}
+
+fn user_agent() -> String {
+    WEBVIEW_UA.lock().unwrap().clone().unwrap_or_else(|| FALLBACK_USER_AGENT.to_string())
+}
 
 #[derive(Debug)]
 pub enum WebError {
@@ -65,7 +82,7 @@ fn http_get(url: &str, cookie: &str) -> Result<Get, FetchError> {
     let mut resp = agent
         .get(url)
         .header("Cookie", cookie)
-        .header("User-Agent", USER_AGENT)
+        .header("User-Agent", user_agent())
         .header("Accept", "application/json")
         .call()
         .map_err(|e| FetchError::Network(e.to_string()))?;

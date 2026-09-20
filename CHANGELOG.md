@@ -7,6 +7,10 @@ include breaking changes.
 
 ## [Unreleased]
 
+### Changed
+- Plain web requests now send the webview's real User-Agent instead of a fixed Mac Safari one, so Cloudflare's clearance is more likely to be accepted on Windows (fewer slow fallbacks).
+- Rust tests now run on Windows in CI: `src-tauri/build.rs` embeds a Common Controls v6 manifest (`windows.manifest`) in all Windows builds.
+
 ### Fixed
 - **Windows app icon** now has rounded corners and a transparent margin (was a sharp-cornered square). Regenerated `icon.ico` (16–256 px), PNGs and Store/tile logos with `scripts/make-windows-icons.mjs`.
 - **Windows tray icon** is now a bright blue mark readable on dark and light taskbars; the black template icon and template mode are macOS-only.
