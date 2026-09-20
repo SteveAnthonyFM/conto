@@ -12,6 +12,8 @@ use tauri_plugin_notification::NotificationExt;
 pub struct Levels {
     session: Option<u8>,
     weekly: Option<u8>,
+    /// Sign-in expiry reminder stage: 0 none, 1 within 3 days, 2 within 1 day.
+    expiry: u8,
 }
 
 pub fn level(pct: f64, s: &Settings) -> u8 {
@@ -66,9 +68,59 @@ pub fn check(app: &AppHandle, levels: &mut Levels, usage: &Usage, s: &Settings) 
     }
 }
 
+const DAY_SECS: i64 = 24 * 60 * 60;
+
+/// 0 = plenty of time (or unknown), 1 = within 3 days, 2 = within 1 day (or already past).
+pub fn expiry_level(expires_at: Option<i64>, now: i64) -> u8 {
+    match expires_at.map(|t| t - now) {
+        Some(left) if left <= DAY_SECS => 2,
+        Some(left) if left <= 3 * DAY_SECS => 1,
+        _ => 0,
+    }
+}
+
+/// Returns Some(new_level) when a reminder is due. Unlike usage levels, the first reading
+/// counts: opening the app with 2 days left should tell you. Signing in again pushes the
+/// expiry out, dropping the level back to 0 so a later expiry can remind again.
+fn expiry_step(slot: &mut u8, expires_at: Option<i64>, now: i64) -> Option<u8> {
+    let lvl = expiry_level(expires_at, now);
+    let fire = (lvl > *slot).then_some(lvl);
+    *slot = lvl;
+    fire
+}
+
+pub fn check_session_expiry(app: &AppHandle, levels: &mut Levels, expires_at: Option<i64>, now: i64, s: &Settings) {
+    let Some(lvl) = expiry_step(&mut levels.expiry, expires_at, now) else { return };
+    if !s.notifications_enabled {
+        return;
+    }
+    let left = expires_at.map_or(0, |t| t - now);
+    let title = if left <= 0 {
+        "Your Claude sign-in has expired".to_string()
+    } else if lvl >= 2 {
+        "Your Claude sign-in expires within a day".to_string()
+    } else {
+        format!("Your Claude sign-in expires in {} days", (left + DAY_SECS - 1) / DAY_SECS)
+    };
+    let _ = app.notification().builder().title(title).body("Open CONTO and choose Sign in to keep your usage updating.").show();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn expiry_reminders_fire_at_three_days_then_one_day() {
+        let now = 1_000_000;
+        let mut slot = 0;
+        assert_eq!(expiry_step(&mut slot, None, now), None); // no cookie expiry known
+        assert_eq!(expiry_step(&mut slot, Some(now + 10 * DAY_SECS), now), None);
+        assert_eq!(expiry_step(&mut slot, Some(now + 2 * DAY_SECS), now), Some(1));
+        assert_eq!(expiry_step(&mut slot, Some(now + 2 * DAY_SECS), now), None); // already told
+        assert_eq!(expiry_step(&mut slot, Some(now + DAY_SECS / 2), now), Some(2));
+        assert_eq!(expiry_step(&mut slot, Some(now + 28 * DAY_SECS), now), None); // signed in again
+        assert_eq!(expiry_step(&mut slot, Some(now + 3 * DAY_SECS), now), Some(1)); // and can remind again
+    }
 
     #[test]
     fn first_reading_is_silent_then_only_increases_fire() {

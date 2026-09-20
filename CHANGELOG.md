@@ -7,6 +7,9 @@ include breaking changes.
 
 ## [Unreleased]
 
+### Added
+- **Sign-in expiry reminder:** CONTO reads when your claude.ai sign-in expires (only the date, never the cookie itself). Within 3 days the footer turns amber ("Sign-in expires in 2 days") with a Sign in button, and a desktop notification appears at 3 days and again at 1 day (respects the Notifications setting). Settings shows "Signed in until <date>".
+
 ### Changed
 - Plain web requests now send the webview's real User-Agent instead of a fixed Mac Safari one, so Cloudflare's clearance is more likely to be accepted on Windows (fewer slow fallbacks).
 - Rust tests now run on Windows in CI: `src-tauri/build.rs` embeds a Common Controls v6 manifest (`windows.manifest`) in all Windows builds.

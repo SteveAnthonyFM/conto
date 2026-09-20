@@ -52,6 +52,7 @@ export function App() {
         fetched_at: prev?.fetched_at ?? null,
         subscription_type: prev?.subscription_type ?? null,
         retry_in_secs: null,
+        session_expires_at: prev?.session_expires_at ?? null,
       }))
     } finally {
       setRefreshing(false)
@@ -239,6 +240,7 @@ export function App() {
               settings={settings}
               onSettings={setSettings}
               signedIn={status.kind === 'ok' || (usage !== null && status.kind !== 'no_credentials' && status.kind !== 'token_expired')}
+              sessionExpiresAt={report?.session_expires_at ?? null}
               onSignIn={() => void handleSignIn()}
               onSignedOut={() => {
                 setSettingsOn(false)
@@ -309,6 +311,7 @@ export function App() {
           <StatusBar
             status={status}
             fetchedAt={report?.fetched_at ?? null}
+            sessionExpiresAt={report?.session_expires_at ?? null}
             refreshing={refreshing}
             onRefresh={() => void load(true)}
             onSignIn={() => void handleSignIn()}

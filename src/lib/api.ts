@@ -28,6 +28,7 @@ export interface UsageReport {
   fetched_at: number | null
   subscription_type: string | null
   retry_in_secs: number | null
+  session_expires_at: number | null
 }
 
 export interface Snapshot {

@@ -40,6 +40,8 @@ pub struct UsageReport {
     /// Plan reported by Claude Code's credentials ("pro", "max", ...), if present.
     pub subscription_type: Option<String>,
     pub retry_in_secs: Option<u64>,
+    /// Unix seconds when the claude.ai sign-in expires, if known (drives the expiry reminder).
+    pub session_expires_at: Option<i64>,
 }
 
 #[derive(Default)]
@@ -47,6 +49,7 @@ struct Cache {
     usage: Option<Usage>,
     fetched_at: Option<i64>,
     subscription_type: Option<String>,
+    session_expires_at: Option<i64>,
     last_attempt: Option<Instant>,
     blocked_until: Option<Instant>,
     /// claude.ai organization id, remembered so each poll is one request.
@@ -74,6 +77,7 @@ fn report(c: &Cache, status: Status) -> UsageReport {
         fetched_at: c.fetched_at,
         subscription_type: c.subscription_type.clone(),
         retry_in_secs,
+        session_expires_at: c.session_expires_at,
     }
 }
 
@@ -100,6 +104,8 @@ fn refresh(app: Option<&tauri::AppHandle>, state: &AppState, snapshot_file: &std
             fetch_via_claude_code(&mut c, web_rejected)
         }
     };
+
+    c.session_expires_at = app.and_then(webauth::session_expiry);
 
     match result {
         Ok(u) => {
@@ -156,10 +162,11 @@ async fn refresh_usage(app: tauri::AppHandle, force: bool, user_agent: Option<St
     if let Some(t) = state.tray.lock().unwrap().as_ref() {
         tray::update(t, &report);
     }
+    let settings = settings::load(&settings::file_in(&data_dir(&app)));
     if let (Status::Ok, Some(u)) = (&report.status, &report.usage) {
-        let settings = settings::load(&settings::file_in(&data_dir(&app)));
         notify::check(&app, &mut state.levels.lock().unwrap(), u, &settings);
     }
+    notify::check_session_expiry(&app, &mut state.levels.lock().unwrap(), report.session_expires_at, now_secs(), &settings);
     Ok(report)
 }
 

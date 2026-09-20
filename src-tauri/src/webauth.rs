@@ -66,6 +66,15 @@ fn read_session(app: &AppHandle) -> Option<(String, Option<String>)> {
     Some((header, org))
 }
 
+/// Unix seconds when the claude.ai session cookie expires, if signed in and the cookie has a
+/// fixed expiry (a browser-session cookie has none). Reads only the date, never the value.
+pub fn session_expiry(app: &AppHandle) -> Option<i64> {
+    let win = app.get_webview_window("main")?;
+    let cookies = win.cookies_for_url(base_url()).ok()?;
+    let c = cookies.iter().find(|c| c.name() == "sessionKey")?;
+    c.expires_datetime().map(|t| t.unix_timestamp())
+}
+
 enum Get {
     Json(String),
     /// Cloudflare/HTML challenge page instead of JSON.

@@ -8,6 +8,8 @@ interface SettingsPanelProps {
   settings: Settings
   onSettings: (next: Settings) => void
   signedIn: boolean
+  /** Unix seconds when the sign-in expires, if known. */
+  sessionExpiresAt: number | null
   onSignIn: () => void
   onSignedOut: () => void
   onBack: () => void
@@ -49,7 +51,7 @@ function Select({ value, options, format, onChange, label }: { value: number; op
 
 const range = (from: number, to: number, step: number) => Array.from({ length: Math.floor((to - from) / step) + 1 }, (_, i) => from + i * step)
 
-export function SettingsPanel({ settings, onSettings, signedIn, onSignIn, onSignedOut, onBack, onNaturalHeight }: SettingsPanelProps) {
+export function SettingsPanel({ settings, onSettings, signedIn, sessionExpiresAt, onSignIn, onSignedOut, onBack, onNaturalHeight }: SettingsPanelProps) {
   const [titleRef, titleH] = useElementHeight<HTMLDivElement>()
   const [contentRef, contentH] = useElementHeight<HTMLDivElement>()
   useEffect(() => {
@@ -82,7 +84,13 @@ export function SettingsPanel({ settings, onSettings, signedIn, onSignIn, onSign
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-2">
       <div ref={contentRef} className="divide-y divide-[var(--color-border)]">
-        <Row label="Claude account" hint={signedIn ? 'Signed in' : 'Not signed in'}>
+        <Row label="Claude account" hint={
+          signedIn
+            ? sessionExpiresAt
+              ? `Signed in until ${new Date(sessionExpiresAt * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+              : 'Signed in'
+            : 'Not signed in'
+        }>
           {signedIn ? (
             <button
               type="button"

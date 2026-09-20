@@ -5,6 +5,8 @@ import { formatUpdatedAt } from '../lib/format'
 interface StatusBarProps {
   status: Status
   fetchedAt: number | null
+  /** Unix seconds when the claude.ai sign-in expires, if known. */
+  sessionExpiresAt: number | null
   refreshing: boolean
   onRefresh: () => void
   onSignIn: () => void
@@ -31,20 +33,32 @@ const STATUS_LABEL: Record<Status['kind'], string> = {
   error: 'Something went wrong',
 }
 
-export function StatusBar({ status, fetchedAt, refreshing, onRefresh, onSignIn, onSettings, settingsOpen, onClose }: StatusBarProps) {
-  const message = status.kind === 'offline' || status.kind === 'error' ? status.message : STATUS_LABEL[status.kind]
+/** Days left (rounded up) when the sign-in is within this many days of expiring, else null. */
+const EXPIRY_WARN_DAYS = 3
+function daysUntilExpiry(expiresAt: number | null): number | null {
+  if (expiresAt === null) return null
+  const left = expiresAt - Date.now() / 1000
+  return left <= EXPIRY_WARN_DAYS * 86400 ? Math.max(0, Math.ceil(left / 86400)) : null
+}
+
+export function StatusBar({ status, fetchedAt, sessionExpiresAt, refreshing, onRefresh, onSignIn, onSettings, settingsOpen, onClose }: StatusBarProps) {
+  const expiryDays = status.kind === 'ok' ? daysUntilExpiry(sessionExpiresAt) : null
+  const expiryLabel =
+    expiryDays === null ? null : expiryDays === 0 ? 'Sign-in expires today' : `Sign-in expires in ${expiryDays} day${expiryDays === 1 ? '' : 's'}`
+  const message =
+    expiryLabel ?? (status.kind === 'offline' || status.kind === 'error' ? status.message : STATUS_LABEL[status.kind])
 
   return (
     <div className="relative z-10 flex items-center gap-2 border-t border-[var(--color-border)] px-3 py-1.5">
       <span
         className="h-[7px] w-[7px] shrink-0 rounded-full"
-        style={{ backgroundColor: DOT_COLOR[status.kind] }}
+        style={{ backgroundColor: expiryLabel ? 'var(--color-caution)' : DOT_COLOR[status.kind] }}
         title={message}
       />
       <span className="truncate text-[11px] text-[var(--color-text-muted)]">
-        {status.kind === 'ok' ? `Updated ${formatUpdatedAt(fetchedAt)}` : STATUS_LABEL[status.kind]}
+        {expiryLabel ?? (status.kind === 'ok' ? `Updated ${formatUpdatedAt(fetchedAt)}` : STATUS_LABEL[status.kind])}
       </span>
-      {(status.kind === 'no_credentials' || status.kind === 'token_expired') && (
+      {(status.kind === 'no_credentials' || status.kind === 'token_expired' || expiryLabel) && (
         <button
           type="button"
           onClick={onSignIn}

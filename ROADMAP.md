@@ -5,7 +5,6 @@ and votes are welcome via [issues](../../issues).
 
 ## Next (0.2.x) — make it solid
 - **Windows testing:** basics verified on Windows 11; still to check DPI scaling (125%/150%) and notifications on more machines.
-- Handle session expiry more gracefully (sign-in reminder before the session runs out).
 - Polish based on early-tester feedback.
 
 ## Later (0.3.x+)
