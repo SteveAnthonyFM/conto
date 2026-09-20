@@ -10,6 +10,7 @@ include breaking changes.
 ## [0.1.2] - 2026-09-20
 
 ### Changed
+- Copyright is now held by Palace Multimedia LLC (LICENSE); the creator credit (Steve Palazzo Jr) appears in the README, package metadata and the installer's publisher/copyright fields.
 - The Session gauge shows "Starts when you next use Claude" when no 5-hour window is open (0% usage), instead of leaving the reset line blank.
 
 ## [0.1.1] - 2026-09-20

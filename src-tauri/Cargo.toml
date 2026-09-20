@@ -4,6 +4,7 @@ version = "0.1.2"
 description = "Claude usage widget"
 edition = "2021"
 license = "MIT"
+authors = ["Steve Palazzo Jr, Palace Multimedia LLC"]
 repository = "https://github.com/SteveAnthonyFM/conto"
 
 [lib]

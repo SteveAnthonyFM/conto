@@ -30,6 +30,8 @@
   },
   "bundle": {
     "active": true,
+    "publisher": "Palace Multimedia LLC",
+    "copyright": "Copyright (c) 2026 Palace Multimedia LLC. Created by Steve Palazzo Jr.",
     "targets": "all",
     "icon": [
       "icons/32x32.png",

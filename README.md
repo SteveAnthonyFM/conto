@@ -58,7 +58,9 @@ Bug reports and Windows testing are especially welcome — see [CONTRIBUTING.md]
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) — Copyright © 2026 Palace Multimedia LLC.
+
+Created by Steve Palazzo Jr, Palace Multimedia LLC.
 
 ## Status
 
