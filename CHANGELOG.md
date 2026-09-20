@@ -7,6 +7,13 @@ include breaking changes.
 
 ## [Unreleased]
 
+### Fixed
+- **Windows app icon** now has rounded corners and a transparent margin (was a sharp-cornered square). Regenerated `icon.ico` (16–256 px), PNGs and Store/tile logos with `scripts/make-windows-icons.mjs`.
+- **Windows tray icon** is now a bright blue mark readable on dark and light taskbars; the black template icon and template mode are macOS-only.
+
+### Tested
+- First real-hardware Windows test passed: install, sign-in, persistence, window sizing and position, tray, launch at login (survives a restart).
+
 ## [0.1.0] - 2026-09-20
 
 First testing release. Developed and tested on macOS; Windows builds are produced by CI but

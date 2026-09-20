@@ -12,7 +12,12 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, Tray
 use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::ManagerExt;
 
+// macOS: black "template" image the menu bar recolors. Windows/Linux don't recolor tray icons,
+// so they get a colored glyph that reads on both dark and light taskbars.
+#[cfg(target_os = "macos")]
 const ICON_BYTES: &[u8] = include_bytes!("../icons/tray-icon.png");
+#[cfg(not(target_os = "macos"))]
+const ICON_BYTES: &[u8] = include_bytes!("../icons/tray-icon-win.png");
 
 fn toggle_main_window(app: &AppHandle) {
     let Some(window) = app.get_webview_window("main") else { return };
@@ -36,7 +41,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<(TrayIcon, CheckMenuItem<tauri::W
 
     let tray = TrayIconBuilder::with_id("main")
         .icon(icon)
-        .icon_as_template(true) // macOS: adapts to light/dark menu bar automatically
+        .icon_as_template(cfg!(target_os = "macos")) // macOS: adapts to light/dark menu bar automatically
         .tooltip("CONTO")
         .menu(&menu)
         .show_menu_on_left_click(false)

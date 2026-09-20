@@ -62,5 +62,5 @@ Bug reports and Windows testing are especially welcome — see [CONTRIBUTING.md]
 
 ## Status
 
-Developed and tested on macOS. Windows builds are produced by CI but have had little
-real-world testing. See `PLAN.md` for the roadmap and design notes.
+Developed on macOS and tested on Windows 11 (installer, sign-in, tray, launch at login).
+Windows builds are produced by CI; more testing across machines is welcome. See `PLAN.md` for the roadmap and design notes.
