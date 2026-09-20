@@ -3,16 +3,17 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { AmbientWave } from './components/AmbientWave'
 import { CollapsibleSlot } from './components/CollapsibleSlot'
 import { ExpandChevron } from './components/ExpandChevron'
+import { SettingsPanel } from './components/SettingsPanel'
 import { Gauge } from './components/Gauge'
 import { HistoryPanel } from './components/HistoryPanel'
 import { StatusBar } from './components/StatusBar'
 import { ToggleSwitch } from './components/ToggleSwitch'
-import { getSettings, refreshUsage, setHistoryOpen, signIn, setAlwaysOnTop as setAlwaysOnTopSetting, type UsageReport } from './lib/api'
+import { getSettings, refreshUsage, type Settings, setHistoryOpen, signIn, setAlwaysOnTop as setAlwaysOnTopSetting, type UsageReport } from './lib/api'
 import { formatResetsAt, formatResetsIn } from './lib/format'
 import { useElementHeight } from './lib/useElementHeight'
 import { getLogicalWindowSize, animateWindowResizeWithPanel, setWindowHeight } from './lib/windowResize'
 
-const POLL_MS = 5 * 60 * 1000
+const DEFAULT_SETTINGS: Settings = { always_on_top: false, history_open: false, notifications_enabled: true, warn_pct: 60, limit_pct: 85, poll_minutes: 5 }
 // The History panel's fully-open height — both the target for the window-resize delta
 // and the ceiling `historyHeight` animates to/from (see toggleExpanded). A fixed target
 // rather than measuring it, unlike Weekly's slot: Weekly has to gracefully disappear
@@ -28,7 +29,8 @@ export function App() {
   const [report, setReport] = useState<UsageReport | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [alwaysOnTop, setAlwaysOnTop] = useState(false)
-  const pollRef = useRef<number | null>(null)
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
+  const [showSettings, setShowSettings] = useState(false)
 
   const load = useCallback(async (force: boolean) => {
     setRefreshing(true)
@@ -66,17 +68,19 @@ export function App() {
 
   useEffect(() => {
     void load(true)
-    pollRef.current = window.setInterval(() => void load(false), POLL_MS)
-    return () => {
-      if (pollRef.current !== null) window.clearInterval(pollRef.current)
-    }
   }, [load])
+
+  useEffect(() => {
+    const id = window.setInterval(() => void load(false), settings.poll_minutes * 60 * 1000)
+    return () => window.clearInterval(id)
+  }, [load, settings.poll_minutes])
 
   // Always on Top is applied and persisted on the Rust side (set_always_on_top), so it
   // survives a relaunch — this just seeds the toggle's initial state from disk.
   useEffect(() => {
     void getSettings().then((s) => {
       setAlwaysOnTop(s.always_on_top)
+      setSettings(s)
       // The window-state plugin restored the size from when the History panel was open,
       // but the panel always starts closed — shrink back so there's no dead space below.
       if (s.history_open && !startupShrinkDone) {
@@ -167,7 +171,21 @@ export function App() {
           </div>
         </header>
 
-        {showEmptyState ? (
+        {showSettings ? (
+          <div className="relative z-10 overflow-hidden" style={{ height: `${Math.max(mainH - headerH - footerH, 0)}px` }}>
+            <SettingsPanel
+              settings={settings}
+              onSettings={setSettings}
+              signedIn={status.kind === 'ok' || (usage !== null && status.kind !== 'no_credentials' && status.kind !== 'token_expired')}
+              onSignIn={() => void handleSignIn()}
+              onSignedOut={() => {
+                setShowSettings(false)
+                void load(true)
+              }}
+              onBack={() => setShowSettings(false)}
+            />
+          </div>
+        ) : showEmptyState ? (
           <div
             className="relative z-10 flex flex-col items-center justify-center gap-1.5 overflow-hidden px-6 text-center"
             style={{ height: `${Math.max(mainH - headerH - footerH, 0)}px` }}
@@ -194,6 +212,8 @@ export function App() {
             <div ref={sessionRef} className="relative z-10 px-4 pt-1">
               <Gauge
                 label="Session (5h)"
+                warnPct={settings.warn_pct}
+                limitPct={settings.limit_pct}
                 percent={usage?.five_hour?.utilization ?? null}
                 resetsLabel={formatResetsIn(usage?.five_hour?.resets_at ?? null)}
                 size="primary"
@@ -205,6 +225,8 @@ export function App() {
             <CollapsibleSlot className="relative z-10 overflow-hidden px-4 pt-3" heightPx={weeklyHeight}>
               <Gauge
                 label="Weekly"
+                warnPct={settings.warn_pct}
+                limitPct={settings.limit_pct}
                 percent={usage?.seven_day?.utilization ?? null}
                 resetsLabel={formatResetsAt(usage?.seven_day?.resets_at ?? null)}
                 size="secondary"
@@ -230,6 +252,8 @@ export function App() {
             refreshing={refreshing}
             onRefresh={() => void load(true)}
             onSignIn={() => void handleSignIn()}
+            onSettings={() => setShowSettings((v) => !v)}
+            settingsOpen={showSettings}
             onClose={() => void getCurrentWindow().close()}
           />
         </div>

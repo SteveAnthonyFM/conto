@@ -63,6 +63,10 @@ export function getLocalUsage(since: number): Promise<LocalBucket[]> {
 export interface Settings {
   always_on_top: boolean
   history_open: boolean
+  notifications_enabled: boolean
+  warn_pct: number
+  limit_pct: number
+  poll_minutes: number
 }
 
 export function getSettings(): Promise<Settings> {
@@ -84,4 +88,16 @@ export function signOut(): Promise<void> {
 
 export function setHistoryOpen(value: boolean): Promise<void> {
   return invoke('set_history_open', { value })
+}
+
+export function updateSettings(patch: Partial<Settings>): Promise<Settings> {
+  return invoke('update_settings', { patch })
+}
+
+export function getAutostart(): Promise<boolean> {
+  return invoke('get_autostart')
+}
+
+export function setAutostart(value: boolean): Promise<boolean> {
+  return invoke('set_autostart', { value })
 }

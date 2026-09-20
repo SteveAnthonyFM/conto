@@ -6,11 +6,13 @@ interface GaugeProps {
   /** Pre-formatted reset label — the caller picks the right formatter per window. */
   resetsLabel: string | null
   size: 'primary' | 'secondary'
+  warnPct?: number
+  limitPct?: number
 }
 
-export function Gauge({ label, percent, resetsLabel, size }: GaugeProps) {
+export function Gauge({ label, percent, resetsLabel, size, warnPct, limitPct }: GaugeProps) {
   const pct = percent ?? 0
-  const color = percent === null ? 'var(--color-text-muted)' : percentColor(pct)
+  const color = percent === null ? 'var(--color-text-muted)' : percentColor(pct, warnPct, limitPct)
   const isPrimary = size === 'primary'
 
   return (

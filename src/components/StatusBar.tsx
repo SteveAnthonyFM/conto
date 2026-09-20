@@ -8,6 +8,8 @@ interface StatusBarProps {
   refreshing: boolean
   onRefresh: () => void
   onSignIn: () => void
+  onSettings: () => void
+  settingsOpen: boolean
   onClose: () => void
 }
 
@@ -29,7 +31,7 @@ const STATUS_LABEL: Record<Status['kind'], string> = {
   error: 'Something went wrong',
 }
 
-export function StatusBar({ status, fetchedAt, refreshing, onRefresh, onSignIn, onClose }: StatusBarProps) {
+export function StatusBar({ status, fetchedAt, refreshing, onRefresh, onSignIn, onSettings, settingsOpen, onClose }: StatusBarProps) {
   const message = status.kind === 'offline' || status.kind === 'error' ? status.message : STATUS_LABEL[status.kind]
 
   return (
@@ -63,10 +65,10 @@ export function StatusBar({ status, fetchedAt, refreshing, onRefresh, onSignIn, 
         </button>
         <button
           type="button"
-          title="Settings (coming soon)"
+          onClick={onSettings}
+          title="Settings"
           aria-label="Settings"
-          disabled
-          className="rounded-md p-1.5 text-[var(--color-text-muted)] opacity-50"
+          className={`rounded-md p-1.5 transition-colors hover:bg-[var(--color-chip-bg)] hover:text-[var(--color-text)] ${settingsOpen ? 'bg-[var(--color-chip-bg)] text-[var(--color-text)]' : 'text-[var(--color-text-muted)]'}`}
         >
           <Settings size={14} />
         </button>

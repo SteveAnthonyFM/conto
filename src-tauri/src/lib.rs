@@ -1,5 +1,6 @@
 mod credentials;
 mod local;
+mod notify;
 mod settings;
 mod store;
 mod tray;
@@ -55,6 +56,9 @@ struct Cache {
 #[derive(Default)]
 struct AppState {
     cache: Mutex<Cache>,
+    levels: Mutex<notify::Levels>,
+    /// Tray's "Launch at Login" checkbox, kept so the Settings toggle can keep it in sync.
+    launch_item: Mutex<Option<tauri::menu::CheckMenuItem<tauri::Wry>>>,
     tray: Mutex<Option<tauri::tray::TrayIcon>>,
 }
 
@@ -145,8 +149,13 @@ async fn refresh_usage(app: tauri::AppHandle, force: bool) -> Result<UsageReport
         .await
         .map_err(|e| e.to_string())?;
 
-    if let Some(t) = app.state::<AppState>().tray.lock().unwrap().as_ref() {
+    let state = app.state::<AppState>();
+    if let Some(t) = state.tray.lock().unwrap().as_ref() {
         tray::update(t, &report);
+    }
+    if let (Status::Ok, Some(u)) = (&report.status, &report.usage) {
+        let settings = settings::load(&settings::file_in(&data_dir(&app)));
+        notify::check(&app, &mut state.levels.lock().unwrap(), u, &settings);
     }
     Ok(report)
 }
@@ -185,6 +194,33 @@ async fn set_always_on_top(app: tauri::AppHandle, value: bool) -> Result<setting
     Ok(s)
 }
 
+/// Applies a partial settings change (only the keys given) and returns the result.
+#[tauri::command]
+async fn update_settings(app: tauri::AppHandle, patch: serde_json::Value) -> Result<settings::Settings, String> {
+    let file = settings::file_in(&data_dir(&app));
+    let next = settings::load(&file).patched(&patch);
+    settings::save(&file, &next).map_err(|e| e.to_string())?;
+    Ok(next)
+}
+
+#[tauri::command]
+async fn get_autostart(app: tauri::AppHandle) -> bool {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+#[tauri::command]
+async fn set_autostart(app: tauri::AppHandle, value: bool) -> Result<bool, String> {
+    use tauri_plugin_autostart::ManagerExt;
+    let mgr = app.autolaunch();
+    if value { mgr.enable() } else { mgr.disable() }.map_err(|e| e.to_string())?;
+    let actual = mgr.is_enabled().unwrap_or(value);
+    if let Some(item) = app.state::<AppState>().launch_item.lock().unwrap().as_ref() {
+        let _ = item.set_checked(actual);
+    }
+    Ok(actual)
+}
+
 /// Records whether the History panel is open (see `Settings::history_open`).
 #[tauri::command]
 async fn set_history_open(app: tauri::AppHandle, value: bool) -> Result<(), String> {
@@ -210,6 +246,7 @@ async fn get_local_usage(since: i64) -> Result<Vec<local::Bucket>, String> {
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         // Only position/size are restored across launches — not visibility, so quitting
         // while the window is hidden in the tray doesn't leave it hidden on next launch.
@@ -238,7 +275,8 @@ pub fn run() {
                 }
             });
 
-            let tray_icon = tray::build(handle)?;
+            let (tray_icon, launch_item) = tray::build(handle)?;
+            *app.state::<AppState>().launch_item.lock().unwrap() = Some(launch_item);
             *app.state::<AppState>().tray.lock().unwrap() = Some(tray_icon);
 
             Ok(())
@@ -251,7 +289,10 @@ pub fn run() {
             get_local_usage,
             get_settings,
             set_always_on_top,
-            set_history_open
+            set_history_open,
+            update_settings,
+            get_autostart,
+            set_autostart
         ])
         .run(tauri::generate_context!())
         .expect("error while running CONTO");

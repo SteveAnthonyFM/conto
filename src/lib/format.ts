@@ -10,8 +10,16 @@ const STOPS: [number, [number, number, number]][] = [
 ]
 
 /** Smoothly interpolated gauge color for a 0–100 utilization value. */
-export function percentColor(pct: number): string {
-  const p = Math.max(0, Math.min(100, pct))
+/** Colors are defined on a fixed 60/85 scale; `warn`/`limit` (the user's thresholds)
+ * remap the reading onto it so the amber and red bands start exactly where they chose. */
+export function percentColor(pct: number, warn = 60, limit = 85): string {
+  const clamped = Math.max(0, Math.min(100, pct))
+  const p =
+    clamped <= warn
+      ? (clamped / warn) * 60
+      : clamped <= limit
+        ? 60 + ((clamped - warn) / (limit - warn)) * 25
+        : 85 + ((clamped - limit) / Math.max(100 - limit, 1)) * 15
   for (let i = 0; i < STOPS.length - 1; i++) {
     const [p0, c0] = STOPS[i]
     const [p1, c1] = STOPS[i + 1]

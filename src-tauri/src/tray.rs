@@ -24,10 +24,11 @@ fn toggle_main_window(app: &AppHandle) {
     }
 }
 
-pub fn build(app: &AppHandle) -> tauri::Result<TrayIcon> {
+pub fn build(app: &AppHandle) -> tauri::Result<(TrayIcon, CheckMenuItem<tauri::Wry>)> {
     let launch_at_login_enabled = app.autolaunch().is_enabled().unwrap_or(false);
     let launch_at_login: CheckMenuItem<tauri::Wry> =
         CheckMenuItemBuilder::with_id("launch_at_login", "Launch at Login").checked(launch_at_login_enabled).build(app)?;
+    let launch_for_menu = launch_at_login.clone();
     let quit = MenuItemBuilder::with_id("quit", "Quit CONTO").build(app)?;
     let menu = MenuBuilder::new(app).item(&launch_at_login).separator().item(&quit).build()?;
 
@@ -48,7 +49,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<TrayIcon> {
                 if result.is_err() {
                     return;
                 }
-                let _ = launch_at_login.set_checked(!now_enabled);
+                let _ = launch_for_menu.set_checked(!now_enabled);
             }
             _ => {}
         })
@@ -59,7 +60,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<TrayIcon> {
         })
         .build(app)?;
 
-    Ok(tray)
+    Ok((tray, launch_at_login))
 }
 
 /// Reflects the latest usage in the tray: a percentage next to the icon on macOS (there's
