@@ -221,15 +221,6 @@ async fn set_autostart(app: tauri::AppHandle, value: bool) -> Result<bool, Strin
     Ok(actual)
 }
 
-/// Records whether the History panel is open (see `Settings::history_open`).
-#[tauri::command]
-async fn set_history_open(app: tauri::AppHandle, value: bool) -> Result<(), String> {
-    let file = settings::file_in(&data_dir(&app));
-    let mut s = settings::load(&file);
-    s.history_open = value;
-    settings::save(&file, &s).map_err(|e| e.to_string())
-}
-
 /// Saved readings (utilization % over time) at or after `since` unix seconds.
 #[tauri::command]
 async fn get_snapshots(app: tauri::AppHandle, since: i64) -> Vec<store::Snapshot> {
@@ -275,6 +266,16 @@ pub fn run() {
                 }
             });
 
+            // The window starts hidden and the frontend shows it once it has sized itself for
+            // the current screen (no flash of the wrong size). This is just a safety net.
+            let fallback = window.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_secs(5));
+                if !fallback.is_visible().unwrap_or(true) {
+                    let _ = fallback.show();
+                }
+            });
+
             let (tray_icon, launch_item) = tray::build(handle)?;
             *app.state::<AppState>().launch_item.lock().unwrap() = Some(launch_item);
             *app.state::<AppState>().tray.lock().unwrap() = Some(tray_icon);
@@ -289,7 +290,6 @@ pub fn run() {
             get_local_usage,
             get_settings,
             set_always_on_top,
-            set_history_open,
             update_settings,
             get_autostart,
             set_autostart

@@ -62,7 +62,6 @@ export function getLocalUsage(since: number): Promise<LocalBucket[]> {
 
 export interface Settings {
   always_on_top: boolean
-  history_open: boolean
   notifications_enabled: boolean
   warn_pct: number
   limit_pct: number
@@ -84,10 +83,6 @@ export function signIn(): Promise<void> {
 
 export function signOut(): Promise<void> {
   return invoke('sign_out')
-}
-
-export function setHistoryOpen(value: boolean): Promise<void> {
-  return invoke('set_history_open', { value })
 }
 
 export function updateSettings(patch: Partial<Settings>): Promise<Settings> {

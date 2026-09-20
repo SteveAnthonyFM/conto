@@ -73,3 +73,18 @@ export async function setWindowHeight(heightPx: number): Promise<void> {
   const { width } = await getLogicalWindowSize()
   await getCurrentWindow().setSize(new LogicalSize(width, heightPx))
 }
+
+export const MIN_WINDOW_WIDTH = 320
+export const MAX_WINDOW_WIDTH = 4000
+
+/** Constrains how tall the window can be (OS-enforced, so drag-resizing respects it). */
+export async function setWindowHeightLimits(minH: number, maxH: number): Promise<void> {
+  const win = getCurrentWindow()
+  await win.setMinSize(new LogicalSize(MIN_WINDOW_WIDTH, minH))
+  await win.setMaxSize(new LogicalSize(MAX_WINDOW_WIDTH, maxH))
+}
+
+/** Lifts the height limits so a programmatic resize animation can run freely. */
+export function relaxWindowHeightLimits(): Promise<void> {
+  return setWindowHeightLimits(100, 3000)
+}

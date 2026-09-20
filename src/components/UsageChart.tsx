@@ -106,9 +106,6 @@ export function UsageChart({ timestamps, series, mode, yDomain, yTicks, yTickFor
                 stroke="var(--chart-grid)"
                 strokeWidth={1}
               />
-              <text x={PAD.left - 6} y={plot.y(tick)} dy="0.32em" textAnchor="end" fontSize={9} fill="var(--color-text-muted)">
-                {yTickFormat(tick)}
-              </text>
             </g>
           ))}
 
@@ -148,13 +145,30 @@ export function UsageChart({ timestamps, series, mode, yDomain, yTicks, yTickFor
             <line x1={hoverX} x2={hoverX} y1={PAD.top} y2={PAD.top + plot.innerH} stroke="var(--color-border)" strokeWidth={1} />
           )}
 
-          <text x={PAD.left} y={height - 4} fontSize={9} fill="var(--color-text-muted)" textAnchor="start">
-            {xTickFormat(timestamps[0])}
-          </text>
-          <text x={width - PAD.right} y={height - 4} fontSize={9} fill="var(--color-text-muted)" textAnchor="end">
-            {xTickFormat(timestamps[timestamps.length - 1])}
-          </text>
         </svg>
+      )}
+
+      {/* Axis labels are HTML, not SVG <text>: in WebKit the SVG glyphs had their tops
+          shaved off by the font's metrics, while HTML text (like the legend) renders whole. */}
+      {plot &&
+        yTicks.map((tick) => (
+          <span
+            key={`y${tick}`}
+            className="pointer-events-none absolute text-[9px] leading-[1.3] text-[var(--color-text-muted)]"
+            style={{ right: width - (PAD.left - 6), top: plot.y(tick), transform: 'translateY(-50%)' }}
+          >
+            {yTickFormat(tick)}
+          </span>
+        ))}
+      {plot && (
+        <>
+          <span className="pointer-events-none absolute bottom-0 text-[9px] leading-[1.3] text-[var(--color-text-muted)]" style={{ left: PAD.left }}>
+            {xTickFormat(timestamps[0])}
+          </span>
+          <span className="pointer-events-none absolute bottom-0 text-[9px] leading-[1.3] text-[var(--color-text-muted)]" style={{ right: PAD.right }}>
+            {xTickFormat(timestamps[timestamps.length - 1])}
+          </span>
+        </>
       )}
 
       {plot && hoverIndex !== null && (

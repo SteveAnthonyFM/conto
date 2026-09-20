@@ -1,36 +1,42 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { AmbientWave } from './components/AmbientWave'
-import { CollapsibleSlot } from './components/CollapsibleSlot'
 import { ExpandChevron } from './components/ExpandChevron'
-import { SettingsPanel } from './components/SettingsPanel'
 import { Gauge } from './components/Gauge'
 import { HistoryPanel } from './components/HistoryPanel'
+import { ResizeEdges } from './components/ResizeEdges'
+import { SettingsPanel } from './components/SettingsPanel'
 import { StatusBar } from './components/StatusBar'
 import { ToggleSwitch } from './components/ToggleSwitch'
-import { getSettings, refreshUsage, type Settings, setHistoryOpen, signIn, setAlwaysOnTop as setAlwaysOnTopSetting, type UsageReport } from './lib/api'
+import { getSettings, refreshUsage, signIn, setAlwaysOnTop as setAlwaysOnTopSetting, type Settings, type UsageReport } from './lib/api'
 import { formatResetsAt, formatResetsIn } from './lib/format'
 import { useElementHeight } from './lib/useElementHeight'
-import { getLogicalWindowSize, animateWindowResizeWithPanel, setWindowHeight } from './lib/windowResize'
+import { animateWindowResize, getLogicalWindowSize, relaxWindowHeightLimits, setWindowHeightLimits } from './lib/windowResize'
+import { LogicalSize } from '@tauri-apps/api/dpi'
 
-const DEFAULT_SETTINGS: Settings = { always_on_top: false, history_open: false, notifications_enabled: true, warn_pct: 60, limit_pct: 85, poll_minutes: 5 }
-// The History panel's fully-open height — both the target for the window-resize delta
-// and the ceiling `historyHeight` animates to/from (see toggleExpanded). A fixed target
-// rather than measuring it, unlike Weekly's slot: Weekly has to gracefully disappear
-// under a resize the *user* drives directly (dragging the window edge), so it needs live
-// measurement; this panel's size is one App already controls both ends of, since it
-// drives the resize itself.
-const HISTORY_PANEL_HEIGHT = 210
-const MIN_WINDOW_HEIGHT = 160
-// StrictMode runs effects twice in dev; the one-time startup shrink must not repeat.
-let startupShrinkDone = false
+const DEFAULT_SETTINGS: Settings = { always_on_top: false, notifications_enabled: true, warn_pct: 60, limit_pct: 85, poll_minutes: 5 }
+
+// Each screen has its own allowed window height, so the window never has dead space or
+// clipped content and the user never has to re-adjust it after switching screens:
+//   compact  — exactly the content (fixed height)
+//   history  — compact + a chart area that may flex between HISTORY_MIN and HISTORY_MAX
+//   settings — exactly the height that shows every option (may be made shorter, then it scrolls)
+//   empty    — the sign-in prompt (fixed height)
+const HISTORY_MIN = 180
+const HISTORY_OPEN = 220
+const HISTORY_MAX = 300
+const EMPTY_BODY = 140
+// Outer p-1.5 padding (12) + the card's 1px border on each side (2).
+const CARD_CHROME = 14
+const MAIN_BORDER = 2
+
+type View = 'empty' | 'compact' | 'history' | 'settings'
 
 export function App() {
   const [report, setReport] = useState<UsageReport | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [alwaysOnTop, setAlwaysOnTop] = useState(false)
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS)
-  const [showSettings, setShowSettings] = useState(false)
 
   const load = useCallback(async (force: boolean) => {
     setRefreshing(true)
@@ -81,15 +87,6 @@ export function App() {
     void getSettings().then((s) => {
       setAlwaysOnTop(s.always_on_top)
       setSettings(s)
-      // The window-state plugin restored the size from when the History panel was open,
-      // but the panel always starts closed — shrink back so there's no dead space below.
-      if (s.history_open && !startupShrinkDone) {
-        startupShrinkDone = true
-        void setHistoryOpen(false)
-        void getLogicalWindowSize()
-          .then(({ height }) => setWindowHeight(Math.max(height - HISTORY_PANEL_HEIGHT, MIN_WINDOW_HEIGHT)))
-          .catch(() => {})
-      }
     })
   }, [])
 
@@ -98,59 +95,124 @@ export function App() {
     void setAlwaysOnTopSetting(next)
   }, [])
 
-  // historyHeight (not a boolean) drives both the panel's own CSS height and the Weekly
-  // arithmetic below, animated in lockstep with the window resize — see
-  // animateWindowResizeWithPanel's doc comment for why: growing the panel to its full
-  // height instantly, before the window itself has grown to match, briefly starves
-  // Weekly of space and makes it flicker out and back in.
-  const [historyHeight, setHistoryHeight] = useState(0)
-  const expanded = historyHeight > 0
-  const animatingRef = useRef(false)
-
-  const toggleExpanded = useCallback(async () => {
-    if (animatingRef.current) return
-    animatingRef.current = true
-    try {
-      const { width, height } = await getLogicalWindowSize()
-      if (!expanded) {
-        const targetWinHeight = height + HISTORY_PANEL_HEIGHT
-        void setHistoryOpen(true)
-        await animateWindowResizeWithPanel(width, height, targetWinHeight, 0, HISTORY_PANEL_HEIGHT, setHistoryHeight)
-      } else {
-        const targetWinHeight = Math.max(height - HISTORY_PANEL_HEIGHT, MIN_WINDOW_HEIGHT)
-        await animateWindowResizeWithPanel(width, height, targetWinHeight, HISTORY_PANEL_HEIGHT, 0, setHistoryHeight)
-        void setHistoryOpen(false)
-      }
-    } catch {
-      // The window-sizing calls only fail outside a real Tauri window (there's no
-      // native window to measure or resize); fail soft to a plain toggle rather than
-      // leave the panel stuck mid-transition or the click silently doing nothing.
-      setHistoryHeight((h) => (h > 0 ? 0 : HISTORY_PANEL_HEIGHT))
-    } finally {
-      animatingRef.current = false
-    }
-  }, [expanded])
-
   const usage = report?.usage ?? null
   const status = report?.status ?? { kind: 'ok' as const }
   const showEmptyState = !usage && (status.kind === 'no_credentials' || status.kind === 'token_expired')
 
-  // The card's four regions (header, Session, Weekly, footer) are laid out with exact
-  // pixel arithmetic rather than flexbox grow/shrink: header/Session/footer are measured
-  // at their natural size, and Weekly gets whatever's left over, clamped at 0. This is
-  // what lets the footer keep its exact padding at every window size — see the note in
-  // CollapsibleSlot.tsx for why flex-shrink wasn't reliable enough for that across
-  // Tauri's two render engines.
+  // ---- Layout: every region is measured at its natural size; the History panel gets
+  // whatever the window has left. (Exact pixel arithmetic rather than flex shrink/grow —
+  // see useElementHeight.ts for why.)
   const [mainRef, mainH] = useElementHeight<HTMLDivElement>()
   const [headerRef, headerH] = useElementHeight<HTMLDivElement>()
   const [sessionRef, sessionH] = useElementHeight<HTMLDivElement>()
+  const [weeklyRef, weeklyH] = useElementHeight<HTMLDivElement>()
   const [chevronRef, chevronH] = useElementHeight<HTMLDivElement>()
   const [footerRef, footerH] = useElementHeight<HTMLDivElement>()
+  const [settingsNatural, setSettingsNatural] = useState(0)
 
-  const weeklyHeight = mainH - headerH - sessionH - chevronH - historyHeight - footerH
+  const compactH = headerH + sessionH + weeklyH + chevronH + footerH + CARD_CHROME
+  const emptyH = headerH + footerH + EMPTY_BODY + CARD_CHROME
+  const settingsH = headerH + footerH + settingsNatural + CARD_CHROME
+
+  // ---- Which screen the user wants (intent) vs. which content is drawn. They differ only
+  // while a *closing* transition runs, so the outgoing content shrinks away with the window
+  // instead of vanishing and leaving a gap.
+  const [settingsOn, setSettingsOn] = useState(false)
+  const [historyOn, setHistoryOn] = useState(false)
+  const [renderSettings, setRenderSettings] = useState(false)
+  const [renderHistory, setRenderHistory] = useState(false)
+  const desiredView: View = settingsOn ? 'settings' : showEmptyState ? 'empty' : historyOn ? 'history' : 'compact'
+
+  const openSettings = useCallback(() => {
+    setRenderSettings(true)
+    setSettingsOn(true)
+  }, [])
+  const toggleSettings = useCallback(() => (settingsOn ? setSettingsOn(false) : openSettings()), [settingsOn, openSettings])
+  const toggleHistory = useCallback(() => {
+    if (!historyOn) setRenderHistory(true)
+    setHistoryOn((v) => !v)
+  }, [historyOn])
+
+  // ---- Window sizing controller.
+  const metrics = useRef({ compactH: 0, emptyH: 0, settingsH: 0 })
+  metrics.current = { compactH, emptyH, settingsH }
+  const intent = useRef({ settingsOn, historyOn })
+  intent.current = { settingsOn, historyOn }
+  const limits = useRef({ minH: 0, maxH: 9999 })
+  const lastHistoryWindowH = useRef<number | null>(null)
+  const curView = useRef<View | null>(null)
+  const chain = useRef<Promise<void>>(Promise.resolve())
+  const [canResizeVertically, setCanResizeVertically] = useState(false)
+
+  const limitsFor = (view: View): [number, number] => {
+    const m = metrics.current
+    switch (view) {
+      case 'empty':
+        return [m.emptyH, m.emptyH]
+      case 'compact':
+        return [m.compactH, m.compactH]
+      case 'history':
+        return [m.compactH + HISTORY_MIN, m.compactH + HISTORY_MAX]
+      case 'settings':
+        return [Math.min(m.compactH, m.settingsH), m.settingsH]
+    }
+  }
+  const targetFor = (view: View): number => {
+    const m = metrics.current
+    if (view === 'empty') return m.emptyH
+    if (view === 'settings') return m.settingsH
+    if (view === 'compact') return m.compactH
+    return lastHistoryWindowH.current ?? m.compactH + HISTORY_OPEN
+  }
+  const metricsReady = (view: View) => headerH > 0 && footerH > 0 && (view === 'empty' ? emptyH > 0 : view === 'settings' ? settingsNatural > 0 && compactH > 0 : compactH > 0)
+
+  const settleWindow = useCallback(async (view: View, first: boolean) => {
+    const win = getCurrentWindow()
+    const { width, height } = await getLogicalWindowSize()
+    const [minH, maxH] = limitsFor(view)
+    const target = Math.min(Math.max(targetFor(view), minH), maxH)
+    if (first) {
+      await relaxWindowHeightLimits()
+      await win.setSize(new LogicalSize(width, target))
+    } else if (Math.abs(target - height) > 0.5 && (view !== 'history' || curView.current !== 'history')) {
+      await relaxWindowHeightLimits()
+      await animateWindowResize(width, height, target)
+    }
+    await setWindowHeightLimits(minH, maxH)
+    limits.current = { minH, maxH }
+    setCanResizeVertically(maxH - minH > 1)
+    curView.current = view
+    if (first) await win.show()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (report === null || !metricsReady(desiredView)) return
+    const first = curView.current === null
+    chain.current = chain.current
+      .then(() => settleWindow(desiredView, first))
+      .then(() => {
+        // Closing transitions are done — now the outgoing content can go.
+        setRenderSettings(intent.current.settingsOn)
+        setRenderHistory(intent.current.historyOn)
+      })
+      .catch(() => {
+        // Not in a real Tauri window (browser preview): no sizing to do.
+        setRenderSettings(intent.current.settingsOn)
+        setRenderHistory(intent.current.historyOn)
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report === null, desiredView, compactH, emptyH, settingsH, settingsNatural, headerH, footerH, settleWindow])
+
+  // Remember the chart height the user chose so returning from Settings restores it.
+  useEffect(() => {
+    if (curView.current === 'history' && desiredView === 'history' && mainH > 0) lastHistoryWindowH.current = mainH + CARD_CHROME - MAIN_BORDER
+  }, [mainH, desiredView])
+
+  const historyHeight = Math.max(mainH - MAIN_BORDER - headerH - sessionH - weeklyH - chevronH - footerH, 0)
 
   return (
-    <div className="h-full p-1.5">
+    <div className="relative h-full p-1.5">
       <main
         ref={mainRef}
         className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]"
@@ -171,24 +233,25 @@ export function App() {
           </div>
         </header>
 
-        {showSettings ? (
-          <div className="relative z-10 overflow-hidden" style={{ height: `${Math.max(mainH - headerH - footerH, 0)}px` }}>
+        {renderSettings ? (
+          <div className="relative z-10 overflow-hidden" style={{ height: `${Math.max(mainH - MAIN_BORDER - headerH - footerH, 0)}px` }}>
             <SettingsPanel
               settings={settings}
               onSettings={setSettings}
               signedIn={status.kind === 'ok' || (usage !== null && status.kind !== 'no_credentials' && status.kind !== 'token_expired')}
               onSignIn={() => void handleSignIn()}
               onSignedOut={() => {
-                setShowSettings(false)
+                setSettingsOn(false)
                 void load(true)
               }}
-              onBack={() => setShowSettings(false)}
+              onBack={() => setSettingsOn(false)}
+              onNaturalHeight={setSettingsNatural}
             />
           </div>
         ) : showEmptyState ? (
           <div
             className="relative z-10 flex flex-col items-center justify-center gap-1.5 overflow-hidden px-6 text-center"
-            style={{ height: `${Math.max(mainH - headerH - footerH, 0)}px` }}
+            style={{ height: `${Math.max(mainH - MAIN_BORDER - headerH - footerH, 0)}px` }}
           >
             <p className="text-[13px] text-[var(--color-text)]">
               {status.kind === 'no_credentials' ? 'Sign in to see your usage' : 'Session expired'}
@@ -219,10 +282,7 @@ export function App() {
                 size="primary"
               />
             </div>
-            {/* This is the section that gives way first as the window is resized shorter, so
-                the footer (status/refresh/settings/close) and the Session gauge never move
-                or lose their padding. */}
-            <CollapsibleSlot className="relative z-10 overflow-hidden px-4 pt-3" heightPx={weeklyHeight}>
+            <div ref={weeklyRef} className="relative z-10 px-4 pt-3">
               <Gauge
                 label="Weekly"
                 warnPct={settings.warn_pct}
@@ -231,13 +291,13 @@ export function App() {
                 resetsLabel={formatResetsAt(usage?.seven_day?.resets_at ?? null)}
                 size="secondary"
               />
-            </CollapsibleSlot>
-
-            <div ref={chevronRef}>
-              <ExpandChevron expanded={expanded} onToggle={() => void toggleExpanded()} />
             </div>
 
-            {historyHeight > 0 && (
+            <div ref={chevronRef}>
+              <ExpandChevron expanded={historyOn} onToggle={toggleHistory} />
+            </div>
+
+            {renderHistory && (
               <div className="relative z-10 overflow-hidden" style={{ height: historyHeight }}>
                 <HistoryPanel />
               </div>
@@ -252,12 +312,13 @@ export function App() {
             refreshing={refreshing}
             onRefresh={() => void load(true)}
             onSignIn={() => void handleSignIn()}
-            onSettings={() => setShowSettings((v) => !v)}
-            settingsOpen={showSettings}
+            onSettings={toggleSettings}
+            settingsOpen={settingsOn}
             onClose={() => void getCurrentWindow().close()}
           />
         </div>
       </main>
+      <ResizeEdges limits={limits} canResizeVertically={canResizeVertically} />
     </div>
   )
 }

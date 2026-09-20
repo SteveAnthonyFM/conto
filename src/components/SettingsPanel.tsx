@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
+import { useElementHeight } from '../lib/useElementHeight'
 import { getAutostart, setAutostart, signOut, updateSettings, type Settings } from '../lib/api'
 import { ToggleSwitch } from './ToggleSwitch'
 
@@ -10,8 +11,11 @@ interface SettingsPanelProps {
   onSignIn: () => void
   onSignedOut: () => void
   onBack: () => void
+  /** Height needed to show every option without scrolling. */
+  onNaturalHeight: (px: number) => void
 }
 
+const LIST_PADDING_BOTTOM = 8 // the scroll area's pb-2
 const POLL_OPTIONS = [2, 5, 10, 15, 30]
 
 function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -45,7 +49,13 @@ function Select({ value, options, format, onChange, label }: { value: number; op
 
 const range = (from: number, to: number, step: number) => Array.from({ length: Math.floor((to - from) / step) + 1 }, (_, i) => from + i * step)
 
-export function SettingsPanel({ settings, onSettings, signedIn, onSignIn, onSignedOut, onBack }: SettingsPanelProps) {
+export function SettingsPanel({ settings, onSettings, signedIn, onSignIn, onSignedOut, onBack, onNaturalHeight }: SettingsPanelProps) {
+  const [titleRef, titleH] = useElementHeight<HTMLDivElement>()
+  const [contentRef, contentH] = useElementHeight<HTMLDivElement>()
+  useEffect(() => {
+    if (titleH > 0 && contentH > 0) onNaturalHeight(titleH + contentH + LIST_PADDING_BOTTOM)
+  }, [titleH, contentH, onNaturalHeight])
+
   const [autostart, setAutostartState] = useState(false)
   useEffect(() => {
     void getAutostart().then(setAutostartState).catch(() => {})
@@ -58,7 +68,7 @@ export function SettingsPanel({ settings, onSettings, signedIn, onSignIn, onSign
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 px-3 pb-1 pt-1">
+      <div ref={titleRef} className="flex items-center gap-2 px-3 pb-1 pt-1">
         <button
           type="button"
           onClick={onBack}
@@ -70,7 +80,8 @@ export function SettingsPanel({ settings, onSettings, signedIn, onSignIn, onSign
         </button>
         <span className="text-[13px] font-semibold text-[var(--color-text)]">Settings</span>
       </div>
-      <div className="min-h-0 flex-1 divide-y divide-[var(--color-border)] overflow-y-auto px-4 pb-2">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-2">
+      <div ref={contentRef} className="divide-y divide-[var(--color-border)]">
         <Row label="Claude account" hint={signedIn ? 'Signed in' : 'Not signed in'}>
           {signedIn ? (
             <button
@@ -101,6 +112,7 @@ export function SettingsPanel({ settings, onSettings, signedIn, onSignIn, onSign
         <Row label="Launch at login">
           <ToggleSwitch checked={autostart} onChange={(v) => void setAutostart(v).then(setAutostartState)} label="Launch at login" />
         </Row>
+      </div>
       </div>
     </div>
   )
