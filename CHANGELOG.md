@@ -58,5 +58,5 @@ have not yet been tested on real hardware. Installers are unsigned.
 - Installers are unsigned; macOS and Windows will show a security warning on first launch.
 - The macOS icon looks slightly different in Finder list view than in the Dock.
 
-[Unreleased]: https://github.com/SteveAnthonyFM/conto/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/SteveAnthonyFM/conto/releases/tag/v0.1.0
+[Unreleased]: https://github.com/SteveAnthonyFM/conto/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/SteveAnthonyFM/conto/releases/tag/v0.1.2
