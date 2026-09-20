@@ -3,6 +3,8 @@ name = "conto"
 version = "0.1.0"
 description = "Claude usage widget"
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/SteveAnthonyFM/conto"
 
 [lib]
 name = "conto_lib"

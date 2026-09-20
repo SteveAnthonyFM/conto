@@ -15,7 +15,7 @@ Status: planning approved, no application code yet.
 | Snapshots | CONTO saves a reading every 5 minutes to a local store to build the utilization-over-time chart. |
 | Plan tier | Chosen on first run (Pro / Max 5x / Max 20x), changeable in Settings. Per-model weekly bars appear only if the plan reports them. |
 | Polling | Every 5 minutes, plus a manual Refresh button. |
-| Licensing | No license file while private. Add MIT if the repo goes public. |
+| Licensing | MIT (LICENSE added for the 0.1.0 testing release). |
 | CI | GitHub Actions builds macOS and Windows installers on version tags. Installers are unsigned for now. |
 
 ## Data notes (from research)

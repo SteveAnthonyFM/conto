@@ -52,6 +52,14 @@ npx tauri build          # produce an installer for your OS
 Releases are built by GitHub Actions when a tag like `v0.1.0` is pushed
 (`.github/workflows/release.yml`); the result is a draft release to review before publishing.
 
+## Contributing
+
+Bug reports and Windows testing are especially welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Plans are in [ROADMAP.md](ROADMAP.md); changes are in [CHANGELOG.md](CHANGELOG.md).
+
+## License
+
+[MIT](LICENSE)
+
 ## Status
 
 Developed and tested on macOS. Windows builds are produced by CI but have had little

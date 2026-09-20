@@ -1,0 +1,49 @@
+name: Bug report
+description: Something isn't working
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing CONTO! **Do not paste cookies, tokens or credentials.**
+  - type: input
+    id: version
+    attributes:
+      label: CONTO version
+      placeholder: e.g. 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [macOS, Windows 11, Windows 10, Linux, Other]
+    validations:
+      required: true
+  - type: input
+    id: os_version
+    attributes:
+      label: OS version
+      placeholder: e.g. macOS 26.5 / Windows 11 23H2
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what did you see instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. …\n2. …"
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Sign-in / session, Usage numbers wrong or stale, History chart, Settings, Notifications, Tray / menu bar, Window size / layout, Installer / launch, Other]
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots / anything else
+      description: Drag screenshots in here.
