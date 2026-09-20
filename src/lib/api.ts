@@ -62,6 +62,7 @@ export function getLocalUsage(since: number): Promise<LocalBucket[]> {
 
 export interface Settings {
   always_on_top: boolean
+  history_open: boolean
 }
 
 export function getSettings(): Promise<Settings> {
@@ -70,4 +71,17 @@ export function getSettings(): Promise<Settings> {
 
 export function setAlwaysOnTop(value: boolean): Promise<Settings> {
   return invoke('set_always_on_top', { value })
+}
+
+/** Opens the claude.ai sign-in window. Rejects with "cancelled" if the user closes it. */
+export function signIn(): Promise<void> {
+  return invoke('sign_in')
+}
+
+export function signOut(): Promise<void> {
+  return invoke('sign_out')
+}
+
+export function setHistoryOpen(value: boolean): Promise<void> {
+  return invoke('set_history_open', { value })
 }

@@ -29,6 +29,8 @@ pub struct Usage {
 #[derive(Debug)]
 pub enum FetchError {
     Unauthorized,
+    /// No sign-in of any kind is available.
+    NoCredentials,
     RateLimited { retry_after_secs: u64 },
     Network(String),
     BadResponse(String),
@@ -87,6 +89,18 @@ mod tests {
         assert_eq!(u.five_hour.as_ref().unwrap().utilization, 91.0);
         assert_eq!(u.seven_day.as_ref().unwrap().utilization, 25.5);
         assert!(u.seven_day_opus.is_none());
+    }
+
+    #[test]
+    fn parses_claude_ai_web_shape() {
+        // The claude.ai web endpoint carries the same windows plus many extra fields.
+        let body = r#"{"five_hour":{"utilization":4.0,"resets_at":"2026-09-20T17:00:00Z"},
+            "seven_day":{"utilization":25.0,"resets_at":"2026-09-24T09:00:00Z"},
+            "seven_day_opus":null,"seven_day_sonnet":{"utilization":3.0,"resets_at":null},
+            "extra_usage":null,"limits":[{"a":1}],"spend":{"x":2},"tangelo":null}"#;
+        let u = parse_usage(body).unwrap();
+        assert_eq!(u.five_hour.as_ref().unwrap().utilization, 4.0);
+        assert_eq!(u.seven_day_sonnet.as_ref().unwrap().utilization, 3.0);
     }
 
     #[test]

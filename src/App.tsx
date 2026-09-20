@@ -7,10 +7,10 @@ import { Gauge } from './components/Gauge'
 import { HistoryPanel } from './components/HistoryPanel'
 import { StatusBar } from './components/StatusBar'
 import { ToggleSwitch } from './components/ToggleSwitch'
-import { getSettings, refreshUsage, setAlwaysOnTop as setAlwaysOnTopSetting, type UsageReport } from './lib/api'
+import { getSettings, refreshUsage, setHistoryOpen, signIn, setAlwaysOnTop as setAlwaysOnTopSetting, type UsageReport } from './lib/api'
 import { formatResetsAt, formatResetsIn } from './lib/format'
 import { useElementHeight } from './lib/useElementHeight'
-import { animateWindowResizeWithPanel, getLogicalWindowSize } from './lib/windowResize'
+import { getLogicalWindowSize, animateWindowResizeWithPanel, setWindowHeight } from './lib/windowResize'
 
 const POLL_MS = 5 * 60 * 1000
 // The History panel's fully-open height — both the target for the window-resize delta
@@ -21,6 +21,8 @@ const POLL_MS = 5 * 60 * 1000
 // drives the resize itself.
 const HISTORY_PANEL_HEIGHT = 210
 const MIN_WINDOW_HEIGHT = 160
+// StrictMode runs effects twice in dev; the one-time startup shrink must not repeat.
+let startupShrinkDone = false
 
 export function App() {
   const [report, setReport] = useState<UsageReport | null>(null)
@@ -48,6 +50,20 @@ export function App() {
     }
   }, [])
 
+  // Opens the claude.ai sign-in window; once the user finishes (or closes it) we re-poll.
+  const [signingIn, setSigningIn] = useState(false)
+  const handleSignIn = useCallback(async () => {
+    setSigningIn(true)
+    try {
+      await signIn()
+    } catch {
+      // "cancelled" / "already open" — nothing to do but re-check below.
+    } finally {
+      setSigningIn(false)
+      void load(true)
+    }
+  }, [load])
+
   useEffect(() => {
     void load(true)
     pollRef.current = window.setInterval(() => void load(false), POLL_MS)
@@ -59,7 +75,18 @@ export function App() {
   // Always on Top is applied and persisted on the Rust side (set_always_on_top), so it
   // survives a relaunch — this just seeds the toggle's initial state from disk.
   useEffect(() => {
-    void getSettings().then((s) => setAlwaysOnTop(s.always_on_top))
+    void getSettings().then((s) => {
+      setAlwaysOnTop(s.always_on_top)
+      // The window-state plugin restored the size from when the History panel was open,
+      // but the panel always starts closed — shrink back so there's no dead space below.
+      if (s.history_open && !startupShrinkDone) {
+        startupShrinkDone = true
+        void setHistoryOpen(false)
+        void getLogicalWindowSize()
+          .then(({ height }) => setWindowHeight(Math.max(height - HISTORY_PANEL_HEIGHT, MIN_WINDOW_HEIGHT)))
+          .catch(() => {})
+      }
+    })
   }, [])
 
   const toggleAlwaysOnTop = useCallback((next: boolean) => {
@@ -83,10 +110,12 @@ export function App() {
       const { width, height } = await getLogicalWindowSize()
       if (!expanded) {
         const targetWinHeight = height + HISTORY_PANEL_HEIGHT
+        void setHistoryOpen(true)
         await animateWindowResizeWithPanel(width, height, targetWinHeight, 0, HISTORY_PANEL_HEIGHT, setHistoryHeight)
       } else {
         const targetWinHeight = Math.max(height - HISTORY_PANEL_HEIGHT, MIN_WINDOW_HEIGHT)
         await animateWindowResizeWithPanel(width, height, targetWinHeight, HISTORY_PANEL_HEIGHT, 0, setHistoryHeight)
+        void setHistoryOpen(false)
       }
     } catch {
       // The window-sizing calls only fail outside a real Tauri window (there's no
@@ -144,13 +173,21 @@ export function App() {
             style={{ height: `${Math.max(mainH - headerH - footerH, 0)}px` }}
           >
             <p className="text-[13px] text-[var(--color-text)]">
-              {status.kind === 'no_credentials' ? 'Not signed in to Claude Code' : 'Sign-in expired'}
+              {status.kind === 'no_credentials' ? 'Sign in to see your usage' : 'Session expired'}
             </p>
             <p className="text-[11px] text-[var(--color-text-muted)]">
               {status.kind === 'no_credentials'
-                ? 'Run "claude auth login" in a terminal, then refresh.'
-                : 'Open Claude Code to renew it, then refresh.'}
+                ? 'Use your Claude account. CONTO only reads your usage numbers.'
+                : 'Sign in again to keep your usage up to date.'}
             </p>
+            <button
+              type="button"
+              onClick={() => void handleSignIn()}
+              disabled={signingIn}
+              className="mt-1.5 rounded-lg bg-[var(--color-accent)] px-3.5 py-1.5 text-[12px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+            >
+              {signingIn ? 'Waiting for sign-in…' : 'Sign in to Claude'}
+            </button>
           </div>
         ) : (
           <>
@@ -192,6 +229,7 @@ export function App() {
             fetchedAt={report?.fetched_at ?? null}
             refreshing={refreshing}
             onRefresh={() => void load(true)}
+            onSignIn={() => void handleSignIn()}
             onClose={() => void getCurrentWindow().close()}
           />
         </div>

@@ -67,3 +67,9 @@ export async function getLogicalWindowSize(): Promise<{ width: number; height: n
   const [inner, scale] = await Promise.all([win.innerSize(), win.scaleFactor()])
   return { width: inner.width / scale, height: inner.height / scale }
 }
+
+/** Sets the window's height instantly, keeping its current width. */
+export async function setWindowHeight(heightPx: number): Promise<void> {
+  const { width } = await getLogicalWindowSize()
+  await getCurrentWindow().setSize(new LogicalSize(width, heightPx))
+}

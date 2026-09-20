@@ -4,6 +4,7 @@ mod settings;
 mod store;
 mod tray;
 mod usage;
+mod webauth;
 
 use credentials::CredError;
 use serde::Serialize;
@@ -47,6 +48,8 @@ struct Cache {
     subscription_type: Option<String>,
     last_attempt: Option<Instant>,
     blocked_until: Option<Instant>,
+    /// claude.ai organization id, remembered so each poll is one request.
+    org_id: Option<String>,
 }
 
 #[derive(Default)]
@@ -72,7 +75,7 @@ fn report(c: &Cache, status: Status) -> UsageReport {
 
 /// One poll: read token -> call API -> cache + snapshot. Never panics; failures become a
 /// `Status` so the UI shows a stale state with the last good numbers.
-fn refresh(state: &AppState, snapshot_file: &std::path::Path, force: bool) -> UsageReport {
+fn refresh(app: Option<&tauri::AppHandle>, state: &AppState, snapshot_file: &std::path::Path, force: bool) -> UsageReport {
     let mut c = state.cache.lock().unwrap();
 
     if c.blocked_until.is_some_and(|t| Instant::now() < t) {
@@ -83,17 +86,18 @@ fn refresh(state: &AppState, snapshot_file: &std::path::Path, force: bool) -> Us
     }
     c.last_attempt = Some(Instant::now());
 
-    let token = match credentials::read_token() {
-        Ok(t) => t,
-        Err(CredError::NotFound) => return report(&c, Status::NoCredentials),
-        Err(CredError::Unreadable(m)) => return report(&c, Status::Error(m)),
+    // Source 1: the claude.ai web login (long-lived). Source 2: Claude Code's OAuth token
+    // (short-lived; only fresh while Claude Code is in use), as a fallback.
+    let result = match app.map(|a| webauth::fetch_usage(a, &mut c.org_id)) {
+        Some(Ok(u)) => Ok(u),
+        Some(Err(webauth::WebError::Other(e))) => Err(e),
+        other => {
+            let web_rejected = matches!(other, Some(Err(webauth::WebError::Rejected)));
+            fetch_via_claude_code(&mut c, web_rejected)
+        }
     };
-    c.subscription_type = token.subscription_type.clone();
-    if token.expires_at_ms.is_some_and(|ms| ms <= now_secs() * 1000) {
-        return report(&c, Status::TokenExpired);
-    }
 
-    match usage::fetch_usage(&token.access_token) {
+    match result {
         Ok(u) => {
             let ts = now_secs();
             let _ = store::append(snapshot_file, &store::Snapshot::from_usage(ts, &u));
@@ -108,8 +112,25 @@ fn refresh(state: &AppState, snapshot_file: &std::path::Path, force: bool) -> Us
             report(&c, Status::RateLimited)
         }
         Err(FetchError::Network(m)) => report(&c, Status::Offline(m)),
+        Err(FetchError::NoCredentials) => report(&c, Status::NoCredentials),
         Err(FetchError::BadResponse(m)) => report(&c, Status::Error(m)),
     }
+}
+
+/// Fallback source. `web_rejected` means a web session existed but was refused, so "no
+/// Claude Code login either" should read as "session expired", not "never signed in".
+fn fetch_via_claude_code(c: &mut Cache, web_rejected: bool) -> Result<Usage, FetchError> {
+    let none = if web_rejected { FetchError::Unauthorized } else { FetchError::NoCredentials };
+    let token = match credentials::read_token() {
+        Ok(t) => t,
+        Err(CredError::NotFound) => return Err(none),
+        Err(CredError::Unreadable(m)) => return Err(FetchError::BadResponse(m)),
+    };
+    c.subscription_type = token.subscription_type.clone();
+    if token.expires_at_ms.is_some_and(|ms| ms <= now_secs() * 1000) {
+        return Err(FetchError::Unauthorized);
+    }
+    usage::fetch_usage(&token.access_token)
 }
 
 fn data_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
@@ -120,7 +141,7 @@ fn data_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
 async fn refresh_usage(app: tauri::AppHandle, force: bool) -> Result<UsageReport, String> {
     let file = store::file_in(&data_dir(&app));
     let app2 = app.clone();
-    let report = tauri::async_runtime::spawn_blocking(move || refresh(&app2.state::<AppState>(), &file, force))
+    let report = tauri::async_runtime::spawn_blocking(move || refresh(Some(&app2), &app2.state::<AppState>(), &file, force))
         .await
         .map_err(|e| e.to_string())?;
 
@@ -128,6 +149,21 @@ async fn refresh_usage(app: tauri::AppHandle, force: bool) -> Result<UsageReport
         tray::update(t, &report);
     }
     Ok(report)
+}
+
+/// Opens the claude.ai sign-in window; resolves once signed in ("cancelled" if the user closes it).
+#[tauri::command]
+async fn sign_in(app: tauri::AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || webauth::sign_in(&app)).await.map_err(|e| e.to_string())?
+}
+
+/// Forgets the claude.ai web session (cookies) and the cached organization id.
+#[tauri::command]
+async fn sign_out(app: tauri::AppHandle) -> Result<(), String> {
+    let app2 = app.clone();
+    tauri::async_runtime::spawn_blocking(move || webauth::sign_out(&app2)).await.map_err(|e| e.to_string())??;
+    app.state::<AppState>().cache.lock().unwrap().org_id = None;
+    Ok(())
 }
 
 #[tauri::command]
@@ -147,6 +183,15 @@ async fn set_always_on_top(app: tauri::AppHandle, value: bool) -> Result<setting
     s.always_on_top = value;
     settings::save(&file, &s).map_err(|e| e.to_string())?;
     Ok(s)
+}
+
+/// Records whether the History panel is open (see `Settings::history_open`).
+#[tauri::command]
+async fn set_history_open(app: tauri::AppHandle, value: bool) -> Result<(), String> {
+    let file = settings::file_in(&data_dir(&app));
+    let mut s = settings::load(&file);
+    s.history_open = value;
+    settings::save(&file, &s).map_err(|e| e.to_string())
 }
 
 /// Saved readings (utilization % over time) at or after `since` unix seconds.
@@ -200,10 +245,13 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             refresh_usage,
+            sign_in,
+            sign_out,
             get_snapshots,
             get_local_usage,
             get_settings,
-            set_always_on_top
+            set_always_on_top,
+            set_history_open
         ])
         .run(tauri::generate_context!())
         .expect("error while running CONTO");
@@ -220,7 +268,7 @@ mod tests {
     fn live_refresh_and_local_scan() {
         let dir = std::env::temp_dir().join("conto-live-test");
         let state = AppState::default();
-        let r = refresh(&state, &store::file_in(&dir), false);
+        let r = refresh(None, &state, &store::file_in(&dir), false);
         println!("status: {:?}", r.status);
         println!("plan: {:?}", r.subscription_type);
         if let Some(u) = &r.usage {

@@ -11,11 +11,15 @@ use std::path::{Path, PathBuf};
 #[serde(default)]
 pub struct Settings {
     pub always_on_top: bool,
+    /// Whether the History panel was open at last change. The window-state plugin saves the
+    /// window's full height (panel included) but the panel always starts closed, so on
+    /// launch the frontend uses this to shrink the window back to its compact size.
+    pub history_open: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { always_on_top: false }
+        Settings { always_on_top: false, history_open: false }
     }
 }
 
@@ -49,7 +53,7 @@ mod tests {
     fn save_then_load_roundtrips() {
         let dir = std::env::temp_dir().join(format!("conto-settings-test-{}", std::process::id()));
         let file = file_in(&dir);
-        let s = Settings { always_on_top: true };
+        let s = Settings { always_on_top: true, history_open: true };
         save(&file, &s).unwrap();
         assert_eq!(load(&file), s);
         let _ = std::fs::remove_dir_all(dir);

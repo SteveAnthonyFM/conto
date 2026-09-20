@@ -7,6 +7,7 @@ interface StatusBarProps {
   fetchedAt: number | null
   refreshing: boolean
   onRefresh: () => void
+  onSignIn: () => void
   onClose: () => void
 }
 
@@ -21,14 +22,14 @@ const DOT_COLOR: Record<Status['kind'], string> = {
 
 const STATUS_LABEL: Record<Status['kind'], string> = {
   ok: 'Connected',
-  no_credentials: 'Not signed in — run `claude auth login`',
-  token_expired: 'Sign-in expired — open Claude Code to renew',
+  no_credentials: 'Not signed in',
+  token_expired: 'Session expired — sign in again',
   rate_limited: 'Rate limited, retrying shortly',
   offline: 'Offline — showing last reading',
   error: 'Something went wrong',
 }
 
-export function StatusBar({ status, fetchedAt, refreshing, onRefresh, onClose }: StatusBarProps) {
+export function StatusBar({ status, fetchedAt, refreshing, onRefresh, onSignIn, onClose }: StatusBarProps) {
   const message = status.kind === 'offline' || status.kind === 'error' ? status.message : STATUS_LABEL[status.kind]
 
   return (
@@ -41,6 +42,15 @@ export function StatusBar({ status, fetchedAt, refreshing, onRefresh, onClose }:
       <span className="truncate text-[11px] text-[var(--color-text-muted)]">
         {status.kind === 'ok' ? `Updated ${formatUpdatedAt(fetchedAt)}` : STATUS_LABEL[status.kind]}
       </span>
+      {(status.kind === 'no_credentials' || status.kind === 'token_expired') && (
+        <button
+          type="button"
+          onClick={onSignIn}
+          className="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-chip-bg)]"
+        >
+          Sign in
+        </button>
+      )}
       <div className="ml-auto flex items-center gap-1">
         <button
           type="button"
