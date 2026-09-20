@@ -21,6 +21,10 @@ interface UsageChartProps {
   emptyMessage: string
 }
 
+// Palanquin's numerals are short (about lowercase height), which reads as clipped text at
+// chart-label sizes. Numbers on the chart use the system UI font, which has full-height digits.
+const NUMERIC_FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif'
+
 const PAD = { top: 10, right: 12, bottom: 18, left: 30 }
 
 // The SVG's viewBox is set to the container's actual measured pixel size (via
@@ -155,17 +159,17 @@ export function UsageChart({ timestamps, series, mode, yDomain, yTicks, yTickFor
           <span
             key={`y${tick}`}
             className="pointer-events-none absolute text-[9px] leading-[1.3] text-[var(--color-text-muted)]"
-            style={{ right: width - (PAD.left - 6), top: plot.y(tick), transform: 'translateY(-50%)' }}
+            style={{ right: width - (PAD.left - 6), top: plot.y(tick), transform: 'translateY(-50%)', fontFamily: NUMERIC_FONT }}
           >
             {yTickFormat(tick)}
           </span>
         ))}
       {plot && (
         <>
-          <span className="pointer-events-none absolute bottom-0 text-[9px] leading-[1.3] text-[var(--color-text-muted)]" style={{ left: PAD.left }}>
+          <span className="pointer-events-none absolute bottom-0 text-[9px] leading-[1.3] text-[var(--color-text-muted)]" style={{ left: PAD.left, fontFamily: NUMERIC_FONT }}>
             {xTickFormat(timestamps[0])}
           </span>
-          <span className="pointer-events-none absolute bottom-0 text-[9px] leading-[1.3] text-[var(--color-text-muted)]" style={{ right: PAD.right }}>
+          <span className="pointer-events-none absolute bottom-0 text-[9px] leading-[1.3] text-[var(--color-text-muted)]" style={{ right: PAD.right, fontFamily: NUMERIC_FONT }}>
             {xTickFormat(timestamps[timestamps.length - 1])}
           </span>
         </>
@@ -198,7 +202,7 @@ function ChartTooltip({ containerWidth, x, time, rows, valueFormat }: ChartToolt
   return (
     <div
       className="pointer-events-none absolute top-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-chip-bg)] px-2 py-1.5 shadow-lg"
-      style={{ left, width: estWidth }}
+      style={{ left, width: estWidth, fontFamily: NUMERIC_FONT }}
     >
       <div className="mb-1 text-[9px] text-[var(--color-text-muted)]">{time}</div>
       {rows.map((row) => (
