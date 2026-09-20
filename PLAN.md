@@ -10,7 +10,7 @@ Status: planning approved, no application code yet.
 |---|---|
 | Framework | **Tauri 2** (Rust core + system webview). Small installers (~10 MB), low idle RAM (~30–60 MB). |
 | UI stack | React + TypeScript + Vite + Tailwind + lucide-react (same as Studiolo, so styling carries over). |
-| Data: gauges | Anthropic usage endpoint `GET https://api.anthropic.com/api/oauth/usage`, using the OAuth token Claude Code already stores (macOS Keychain / `~/.claude/.credentials.json`). Read-only; only `api.anthropic.com` is contacted. |
+| Data: gauges | **claude.ai web login** (primary): sign-in window, session kept in the webview cookie store (~4 weeks), usage from `claude.ai/api/organizations/<id>/usage`. Fallback: Claude Code's OAuth token (`api.anthropic.com/api/oauth/usage`; ~1 h lifetime, only fresh while Claude Code is in use). Read-only. |
 | Data: history and models | Local logs at `~/.claude/projects/**/*.jsonl` for token counts by model and history backfill. |
 | Snapshots | CONTO saves a reading every 5 minutes to a local store to build the utilization-over-time chart. |
 | Plan tier | Chosen on first run (Pro / Max 5x / Max 20x), changeable in Settings. Per-model weekly bars appear only if the plan reports them. |
@@ -22,7 +22,7 @@ Status: planning approved, no application code yet.
 
 - The endpoint returns `five_hour`, `seven_day`, `seven_day_opus`, `seven_day_sonnet` (each with `utilization` 0–100 and `resets_at` ISO timestamp) and `extra_usage`.
 - Required headers: `Authorization: Bearer <token>`, `anthropic-beta: oauth-2025-04-20`, `User-Agent: claude-code/<version>` (without it, requests hit an aggressive rate-limit bucket), `Content-Type: application/json`.
-- Access tokens expire about every 60 minutes and are refreshed by Claude Code, not by CONTO. When expired, CONTO shows a "Sign in via Claude Code" stale state.
+- Claude Code's OAuth access tokens expire about every 60 minutes and are refreshed only while Claude Code runs — which is why the web login is the primary source. When the web session expires, CONTO shows a "sign in again" state and keeps the last reading.
 - The endpoint is **unofficial and may change**. It sits behind a provider interface so a change means a small fix, with local-log estimates as a fallback.
 - JSONL `input_tokens` values are unreliable streaming placeholders (see ccusage #866). Logs are used for counts and history, never for percentages.
 - Back off on HTTP 429.

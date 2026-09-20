@@ -1,0 +1,47 @@
+name: Release
+
+# Builds installers for macOS (Apple silicon + Intel, one universal app) and Windows when
+# a version tag such as v0.1.0 is pushed, and attaches them to a DRAFT GitHub release for
+# review before publishing. Installers are unsigned for now (see README).
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            args: --target universal-apple-darwin
+          - os: windows-latest
+            args: ''
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'CONTO ${{ github.ref_name }}'
+          releaseBody: 'Unsigned early build. See the README for first-launch instructions on macOS and Windows.'
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
