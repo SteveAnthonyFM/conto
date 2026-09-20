@@ -7,3 +7,6 @@ src-tauri/gen
 .env
 *.tsbuildinfo
 src-tauri/.cargo/
+
+# Local working notes (not published)
+HANDOFF.md
