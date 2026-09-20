@@ -7,6 +7,7 @@ and votes are welcome via [issues](../../issues).
 - **Windows testing and fixes:** sign-in, tray, window behavior, icon, DPI scaling.
 - Handle session expiry more gracefully (sign-in reminder before the session runs out).
 - Use the webview's real User-Agent for plain requests (fewer Cloudflare fallbacks).
+- Run the Rust unit tests on Windows in CI (needs a Windows manifest for the test binary; today CI only compiles them there).
 - Polish based on early-tester feedback.
 
 ## Later (0.3.x+)

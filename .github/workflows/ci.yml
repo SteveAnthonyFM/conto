@@ -24,5 +24,7 @@ jobs:
           workspaces: src-tauri
       - run: npm ci
       - run: npx tsc --noEmit
-      - run: cargo test
+      # Test binaries for Tauri apps lack the Windows manifest and fail to start
+      # (STATUS_ENTRYPOINT_NOT_FOUND), so on Windows we only verify that they compile.
+      - run: cargo test ${{ matrix.os == 'windows-latest' && '--no-run' || '' }}
         working-directory: src-tauri
