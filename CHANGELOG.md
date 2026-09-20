@@ -7,6 +7,8 @@ include breaking changes.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-20
+
 ### Added
 - **Sign-in expiry reminder:** CONTO reads when your claude.ai sign-in expires (only the date, never the cookie itself). Within 3 days the footer turns amber ("Sign-in expires in 2 days") with a Sign in button, and a desktop notification appears at 3 days and again at 1 day (respects the Notifications setting). Settings shows "Signed in until <date>".
 
