@@ -280,7 +280,8 @@ export function App() {
                 warnPct={settings.warn_pct}
                 limitPct={settings.limit_pct}
                 percent={usage?.five_hour?.utilization ?? null}
-                resetsLabel={formatResetsIn(usage?.five_hour?.resets_at ?? null)}
+                // No reset time while a reading exists means no 5-hour window is open yet; it starts with your next message.
+                resetsLabel={formatResetsIn(usage?.five_hour?.resets_at ?? null) ?? (usage?.five_hour ? 'Starts when you next use Claude' : null)}
                 size="primary"
               />
             </div>

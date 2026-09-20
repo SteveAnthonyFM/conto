@@ -1,6 +1,6 @@
 [package]
 name = "conto"
-version = "0.1.1"
+version = "0.1.2"
 description = "Claude usage widget"
 edition = "2021"
 license = "MIT"

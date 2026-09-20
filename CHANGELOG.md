@@ -7,6 +7,11 @@ include breaking changes.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-20
+
+### Changed
+- The Session gauge shows "Starts when you next use Claude" when no 5-hour window is open (0% usage), instead of leaving the reset line blank.
+
 ## [0.1.1] - 2026-09-20
 
 ### Added
