@@ -4,7 +4,8 @@ Plans, not promises — CONTO is a small personal project and priorities can shi
 and votes are welcome via [issues](../../issues).
 
 ## Next (0.2.x) — make it solid
-- **Windows testing and fixes:** sign-in, tray, window behavior, icon, DPI scaling.
+- **Windows icons:** a rounded Windows app icon (the current one has sharp corners) and a proper, readable Windows tray icon.
+- **Windows testing and fixes:** sign-in, tray, window behavior, DPI scaling.
 - Handle session expiry more gracefully (sign-in reminder before the session runs out).
 - Use the webview's real User-Agent for plain requests (fewer Cloudflare fallbacks).
 - Run the Rust unit tests on Windows in CI (needs a Windows manifest for the test binary; today CI only compiles them there).
