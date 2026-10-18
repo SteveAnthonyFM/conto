@@ -75,6 +75,12 @@ tray / menu bar) and keeps the two numbers that matter up to date.
       <sub><b>Settings</b> — thresholds, refresh interval, notifications, updates</sub>
     </td>
   </tr>
+  <tr>
+    <td align="center" colspan="2">
+      <img src="docs/screenshots/update.png" alt="Footer showing 'Update 0.2.1 available' with a Download button" width="340" /><br />
+      <sub><b>Update alerts</b> — the footer tells you when a new version is out</sub>
+    </td>
+  </tr>
 </table>
 
 ## Install
