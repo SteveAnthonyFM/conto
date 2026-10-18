@@ -5,7 +5,7 @@ UI). Bug reports, testing on Windows, and feedback are the most valuable contrib
 
 ## Reporting bugs and requesting features
 Use the [issue templates](../../issues/new/choose). For a bug, please include your OS and
-version, the CONTO version (from the release name), what you expected and what happened, and
+version, the CONTO version (shown in Settings → Updates), what you expected and what happened, and
 a screenshot if it's visual. **Never paste your session cookie, tokens or credentials** — CONTO
 never needs them in an issue.
 

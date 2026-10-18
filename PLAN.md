@@ -52,7 +52,7 @@ No code is copied; only ideas and documented behavior are reused.
 - Session gauge: the largest bar, with a large % right-aligned and a low-opacity "resets in 4h 36m".
 - Weekly gauge: slightly smaller, with % and reset schedule.
 - Optional per-model bars (Opus/Sonnet) when the plan reports them.
-- Footer: status dot, last-updated time, Refresh, Settings, Close.
+- Footer: status dot, last-updated time (or sign-in expiry / "Update available" with a Download button), Refresh, Settings, Close.
 - Chevron expands to the history panel.
 
 **History panel**
@@ -65,7 +65,8 @@ No code is copied; only ideas and documented behavior are reused.
 - Dock to macOS menu bar / Windows system tray; tray shows current session % (badge or tooltip on Mac, tooltip on Windows).
 
 **Settings**
-- Poll interval, plan tier, thresholds, notifications (on/off), launch at login, theme, opacity, token source.
+- Poll interval, plan tier, thresholds, notifications (on/off), launch at login, update check (Check now + automatic daily check on/off), theme, opacity, token source.
+- Updates are notify-only: `update.rs` reads the latest published GitHub release, compares versions, and can open only a CONTO page on GitHub. No download or install.
 - Notifications fire when a threshold is crossed (defaults: 60% caution, 85% limit).
 
 ## Milestones
