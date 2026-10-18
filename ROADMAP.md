@@ -17,7 +17,8 @@ and votes are welcome via [issues](../../issues).
 
 ## Distribution
 - Code signing and notarization (Apple Developer ID, Windows certificate).
-- In-app update notifications, then auto-update.
+- ~~In-app update notifications~~ — shipped in 0.2.0 (notify-only: the footer and Settings point at the release page).
+- One-click auto-update (download and install inside CONTO) — needs update-signing keys and a signed update feed.
 - Linux build (best-effort).
 - macOS Icon Composer icon (needs Xcode).
 

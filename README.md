@@ -51,6 +51,7 @@ tray / menu bar) and keeps the two numbers that matter up to date.
 | **History chart** | See usage % over the last 24 hours, 7 days or 30 days — or switch to **tokens by model**, built from your local Claude Code logs. |
 | **Notifications** | A desktop alert when a gauge crosses your caution or limit level (and a heads-up before your sign-in expires). |
 | **Tray / menu-bar icon** | Shows your session % at a glance, with minimize-to-tray and launch-at-login. |
+| **Update alerts** | CONTO checks GitHub for a newer version and shows **Update available** in the footer (plus a one-time notification). Settings has a **Check now** button and a switch to turn it off. |
 | **Always on top** | Pin it over your work, or let it live quietly in the tray. Position and width are remembered. |
 
 <table>
@@ -71,7 +72,13 @@ tray / menu bar) and keeps the two numbers that matter up to date.
     </td>
     <td align="center">
       <img src="docs/screenshots/settings.png" alt="Settings panel" width="340" /><br />
-      <sub><b>Settings</b> — thresholds, refresh interval, notifications</sub>
+      <sub><b>Settings</b> — thresholds, refresh interval, notifications, updates</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2">
+      <img src="docs/screenshots/update.png" alt="Footer showing 'Update 0.2.1 available' with a Download button" width="340" /><br />
+      <sub><b>Update alerts</b> — the footer tells you when a new version is out</sub>
     </td>
   </tr>
 </table>
@@ -85,6 +92,17 @@ Builds are **unsigned** for now, so your OS will warn you the first time:
 
 - **macOS** — open the `.dmg`, drag CONTO to Applications, then **right-click → Open** the first time and confirm.
 - **Windows** — run the installer; if SmartScreen appears, choose **More info → Run anyway**.
+
+### Updating
+
+CONTO tells you when a newer version is out: the footer shows **Update x.y.z available** with a
+**Download** button, and you get one desktop notification per version. **Download** opens the
+release page; install it over your current copy (your settings and history are kept). Nothing is
+installed automatically.
+
+You can also check any time from Settings → **Updates → Check now**, or turn the daily check off
+with **Check automatically**. (Update checks only ask GitHub for the latest public release —
+nothing about you is sent.)
 
 ## Signing in & privacy
 
@@ -101,7 +119,7 @@ usage from claude.ai.
   browser profile) and lasts several weeks. When it expires CONTO says so and keeps showing your
   last reading until you sign in again.
 - Your session is only ever sent to `claude.ai`. It is never logged.
-- Settings → **Sign out** removes it.
+- Settings → **Sign out** removes it. To renew a sign-in that is about to expire, just choose **Sign in** again — a fresh login window opens and the "Signed in until" date moves out.
 - If you use Claude Code, CONTO can fall back to its login when you're not signed in on the web.
 
 > **Heads-up:** claude.ai's usage endpoint is unofficial and can change without notice. If CONTO
@@ -118,7 +136,7 @@ npm run desktop          # run in development
 npx tauri build          # produce an installer for your OS
 ```
 
-Releases are built by GitHub Actions when a tag like `v0.1.0` is pushed
+Releases are built by GitHub Actions when a tag like `v0.2.0` is pushed
 ([`release.yml`](.github/workflows/release.yml)); the result is a draft release to review before publishing.
 
 ## Contributing

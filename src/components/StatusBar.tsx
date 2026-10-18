@@ -10,6 +10,9 @@ interface StatusBarProps {
   refreshing: boolean
   onRefresh: () => void
   onSignIn: () => void
+  /** Newer CONTO version available to download, if any. */
+  updateVersion: string | null
+  onDownloadUpdate: () => void
   onSettings: () => void
   settingsOpen: boolean
   onClose: () => void
@@ -41,10 +44,12 @@ function daysUntilExpiry(expiresAt: number | null): number | null {
   return left <= EXPIRY_WARN_DAYS * 86400 ? Math.max(0, Math.ceil(left / 86400)) : null
 }
 
-export function StatusBar({ status, fetchedAt, sessionExpiresAt, refreshing, onRefresh, onSignIn, onSettings, settingsOpen, onClose }: StatusBarProps) {
+export function StatusBar({ status, fetchedAt, sessionExpiresAt, refreshing, onRefresh, onSignIn, updateVersion, onDownloadUpdate, onSettings, settingsOpen, onClose }: StatusBarProps) {
   const expiryDays = status.kind === 'ok' ? daysUntilExpiry(sessionExpiresAt) : null
   const expiryLabel =
     expiryDays === null ? null : expiryDays === 0 ? 'Sign-in expires today' : `Sign-in expires in ${expiryDays} day${expiryDays === 1 ? '' : 's'}`
+  // An expiring sign-in matters more than a new version, so it takes the footer first.
+  const updateLabel = !expiryLabel && status.kind === 'ok' && updateVersion ? `Update ${updateVersion} available` : null
   const message =
     expiryLabel ?? (status.kind === 'offline' || status.kind === 'error' ? status.message : STATUS_LABEL[status.kind])
 
@@ -56,8 +61,17 @@ export function StatusBar({ status, fetchedAt, sessionExpiresAt, refreshing, onR
         title={message}
       />
       <span className="truncate text-[11px] text-[var(--color-text-muted)]">
-        {expiryLabel ?? (status.kind === 'ok' ? `Updated ${formatUpdatedAt(fetchedAt)}` : STATUS_LABEL[status.kind])}
+        {expiryLabel ?? updateLabel ?? (status.kind === 'ok' ? `Updated ${formatUpdatedAt(fetchedAt)}` : STATUS_LABEL[status.kind])}
       </span>
+      {updateLabel && (
+        <button
+          type="button"
+          onClick={onDownloadUpdate}
+          className="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-chip-bg)]"
+        >
+          Download
+        </button>
+      )}
       {(status.kind === 'no_credentials' || status.kind === 'token_expired' || expiryLabel) && (
         <button
           type="button"

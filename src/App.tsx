@@ -8,13 +8,15 @@ import { ResizeEdges } from './components/ResizeEdges'
 import { SettingsPanel } from './components/SettingsPanel'
 import { StatusBar } from './components/StatusBar'
 import { ToggleSwitch } from './components/ToggleSwitch'
-import { getSettings, refreshUsage, signIn, setAlwaysOnTop as setAlwaysOnTopSetting, type Settings, type UsageReport } from './lib/api'
+import { getVersion } from '@tauri-apps/api/app'
+import { checkForUpdates, getSettings, openReleasePage, refreshUsage, signIn, setAlwaysOnTop as setAlwaysOnTopSetting, type Settings, type UpdateInfo, type UsageReport } from './lib/api'
 import { formatResetsAt, formatResetsIn } from './lib/format'
 import { useElementHeight } from './lib/useElementHeight'
 import { animateWindowResize, getLogicalWindowSize, relaxWindowHeightLimits, setWindowHeightLimits } from './lib/windowResize'
 import { LogicalSize } from '@tauri-apps/api/dpi'
 
-const DEFAULT_SETTINGS: Settings = { always_on_top: false, notifications_enabled: true, warn_pct: 60, limit_pct: 85, poll_minutes: 5 }
+const DEFAULT_SETTINGS: Settings = { always_on_top: false, notifications_enabled: true, warn_pct: 60, limit_pct: 85, poll_minutes: 5, update_check_enabled: true, last_notified_version: '' }
+const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000
 
 // Each screen has its own allowed window height, so the window never has dead space or
 // clipped content and the user never has to re-adjust it after switching screens:
@@ -76,6 +78,36 @@ export function App() {
   useEffect(() => {
     void load(true)
   }, [load])
+
+  // ---- New-version check (notify-only: we just point at the GitHub release page).
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
+  const [updateChecking, setUpdateChecking] = useState(false)
+  const [updateError, setUpdateError] = useState<string | null>(null)
+  const [appVersion, setAppVersion] = useState('')
+  const runUpdateCheck = useCallback(async (auto: boolean) => {
+    setUpdateChecking(true)
+    try {
+      setUpdateInfo(await checkForUpdates(auto))
+      setUpdateError(null)
+    } catch (err) {
+      // The quiet background check stays quiet; only a manual "Check now" reports a problem.
+      if (!auto) setUpdateError(String(err))
+    } finally {
+      setUpdateChecking(false)
+    }
+  }, [])
+  useEffect(() => {
+    void getVersion().then(setAppVersion).catch(() => {})
+  }, [])
+  useEffect(() => {
+    if (!settings.update_check_enabled) return
+    void runUpdateCheck(true)
+    const id = window.setInterval(() => void runUpdateCheck(true), UPDATE_CHECK_INTERVAL_MS)
+    return () => window.clearInterval(id)
+  }, [settings.update_check_enabled, runUpdateCheck])
+  const downloadUpdate = useCallback(() => {
+    if (updateInfo) void openReleasePage(updateInfo.url)
+  }, [updateInfo])
 
   useEffect(() => {
     const id = window.setInterval(() => void load(false), settings.poll_minutes * 60 * 1000)
@@ -237,6 +269,9 @@ export function App() {
         {renderSettings ? (
           <div className="relative z-10 overflow-hidden" style={{ height: `${Math.max(mainH - MAIN_BORDER - headerH - footerH, 0)}px` }}>
             <SettingsPanel
+              update={{ version: appVersion, info: updateInfo, checking: updateChecking, error: updateError }}
+              onCheckUpdate={() => void runUpdateCheck(false)}
+              onDownloadUpdate={downloadUpdate}
               settings={settings}
               onSettings={setSettings}
               signedIn={status.kind === 'ok' || (usage !== null && status.kind !== 'no_credentials' && status.kind !== 'token_expired')}
@@ -316,6 +351,8 @@ export function App() {
             refreshing={refreshing}
             onRefresh={() => void load(true)}
             onSignIn={() => void handleSignIn()}
+            updateVersion={updateInfo?.available ? updateInfo.latest : null}
+            onDownloadUpdate={downloadUpdate}
             onSettings={toggleSettings}
             settingsOpen={settingsOn}
             onClose={() => void getCurrentWindow().close()}

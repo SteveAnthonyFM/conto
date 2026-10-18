@@ -7,6 +7,12 @@ include breaking changes.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-18
+
+### Added
+- **Update notifications:** CONTO checks GitHub for a newer release at launch and about once a day. When one exists, the footer shows "Update x.y.z available" with a Download button, and a desktop notification appears once per version (respects the Notifications setting). Download opens the release page; nothing is installed automatically.
+- Settings → **Updates**: shows your version, a "Check now" button, and a "Check automatically" toggle to turn the background check off.
+
 ## [0.1.3] - 2026-10-18
 
 ### Fixed

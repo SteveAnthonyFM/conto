@@ -4,6 +4,7 @@ mod notify;
 mod settings;
 mod store;
 mod tray;
+mod update;
 mod usage;
 mod webauth;
 
@@ -231,6 +232,36 @@ async fn set_autostart(app: tauri::AppHandle, value: bool) -> Result<bool, Strin
     Ok(actual)
 }
 
+/// Looks for a newer release. `auto` is the background check: it honours the "check
+/// automatically" setting and announces a given version with a desktop notification only once.
+#[tauri::command]
+async fn check_for_updates(app: tauri::AppHandle, auto: bool) -> Result<update::UpdateInfo, String> {
+    let file = settings::file_in(&data_dir(&app));
+    let s = settings::load(&file);
+    if auto && !s.update_check_enabled {
+        return Err("update checks are turned off".into());
+    }
+    let current = app.package_info().version.to_string();
+    let info = tauri::async_runtime::spawn_blocking(move || update::check(&current)).await.map_err(|e| e.to_string())??;
+    if auto && info.available && s.notifications_enabled && s.last_notified_version != info.latest {
+        use tauri_plugin_notification::NotificationExt;
+        let _ = app
+            .notification()
+            .builder()
+            .title(format!("CONTO {} is available", info.latest))
+            .body("Open CONTO and choose Download in the status bar (or Settings) to get it.")
+            .show();
+        let next = settings::Settings { last_notified_version: info.latest.clone(), ..s };
+        let _ = settings::save(&file, &next);
+    }
+    Ok(info)
+}
+
+#[tauri::command]
+async fn open_release_page(url: String) -> Result<(), String> {
+    update::open_release_page(&url)
+}
+
 /// Saved readings (utilization % over time) at or after `since` unix seconds.
 #[tauri::command]
 async fn get_snapshots(app: tauri::AppHandle, since: i64) -> Vec<store::Snapshot> {
@@ -302,7 +333,9 @@ pub fn run() {
             set_always_on_top,
             update_settings,
             get_autostart,
-            set_autostart
+            set_autostart,
+            check_for_updates,
+            open_release_page
         ])
         .run(tauri::generate_context!())
         .expect("error while running CONTO");

@@ -67,6 +67,8 @@ export interface Settings {
   warn_pct: number
   limit_pct: number
   poll_minutes: number
+  update_check_enabled: boolean
+  last_notified_version: string
 }
 
 export function getSettings(): Promise<Settings> {
@@ -96,4 +98,21 @@ export function getAutostart(): Promise<boolean> {
 
 export function setAutostart(value: boolean): Promise<boolean> {
   return invoke('set_autostart', { value })
+}
+
+export interface UpdateInfo {
+  current: string
+  latest: string
+  available: boolean
+  /** Release page to open (always a CONTO page on GitHub). */
+  url: string
+}
+
+/** Asks GitHub for the newest release. `auto` = the quiet background check. */
+export function checkForUpdates(auto: boolean): Promise<UpdateInfo> {
+  return invoke('check_for_updates', { auto })
+}
+
+export function openReleasePage(url: string): Promise<void> {
+  return invoke('open_release_page', { url })
 }
