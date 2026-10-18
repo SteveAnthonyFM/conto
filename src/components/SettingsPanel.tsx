@@ -1,10 +1,21 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { useElementHeight } from '../lib/useElementHeight'
-import { getAutostart, setAutostart, signOut, updateSettings, type Settings } from '../lib/api'
+import { getAutostart, setAutostart, signOut, updateSettings, type Settings, type UpdateInfo } from '../lib/api'
 import { ToggleSwitch } from './ToggleSwitch'
 
+/** What the app knows about new versions (see App.tsx). */
+export interface UpdateState {
+  version: string
+  info: UpdateInfo | null
+  checking: boolean
+  error: string | null
+}
+
 interface SettingsPanelProps {
+  update: UpdateState
+  onCheckUpdate: () => void
+  onDownloadUpdate: () => void
   settings: Settings
   onSettings: (next: Settings) => void
   signedIn: boolean
@@ -51,7 +62,7 @@ function Select({ value, options, format, onChange, label }: { value: number; op
 
 const range = (from: number, to: number, step: number) => Array.from({ length: Math.floor((to - from) / step) + 1 }, (_, i) => from + i * step)
 
-export function SettingsPanel({ settings, onSettings, signedIn, sessionExpiresAt, onSignIn, onSignedOut, onBack, onNaturalHeight }: SettingsPanelProps) {
+export function SettingsPanel({ update, onCheckUpdate, onDownloadUpdate, settings, onSettings, signedIn, sessionExpiresAt, onSignIn, onSignedOut, onBack, onNaturalHeight }: SettingsPanelProps) {
   const [titleRef, titleH] = useElementHeight<HTMLDivElement>()
   const [contentRef, contentH] = useElementHeight<HTMLDivElement>()
   useEffect(() => {
@@ -62,6 +73,16 @@ export function SettingsPanel({ settings, onSettings, signedIn, sessionExpiresAt
   useEffect(() => {
     void getAutostart().then(setAutostartState).catch(() => {})
   }, [])
+
+  const updateHint = update.checking
+    ? 'Checking…'
+    : update.info?.available
+      ? `Version ${update.info.latest} is available`
+      : update.error
+        ? `Couldn't check: ${update.error}`
+        : update.info
+          ? `Up to date · version ${update.info.current}`
+          : `Version ${update.version}`
 
   const change = (patch: Partial<Settings>) => {
     onSettings({ ...settings, ...patch })
@@ -119,6 +140,25 @@ export function SettingsPanel({ settings, onSettings, signedIn, sessionExpiresAt
         </Row>
         <Row label="Launch at login">
           <ToggleSwitch checked={autostart} onChange={(v) => void setAutostart(v).then(setAutostartState)} label="Launch at login" />
+        </Row>
+        <Row label="Updates" hint={updateHint}>
+          {update.info?.available ? (
+            <button type="button" onClick={onDownloadUpdate} className="rounded-md bg-[var(--color-accent)] px-2.5 py-1 text-[11px] font-medium text-white">
+              Download
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onCheckUpdate}
+              disabled={update.checking}
+              className="rounded-md border border-[var(--color-border)] px-2.5 py-1 text-[11px] text-[var(--color-text)] hover:bg-[var(--color-chip-bg)] disabled:opacity-60"
+            >
+              {update.checking ? 'Checking…' : 'Check now'}
+            </button>
+          )}
+        </Row>
+        <Row label="Check automatically" hint="Looks for a new version daily">
+          <ToggleSwitch checked={settings.update_check_enabled} onChange={(v) => change({ update_check_enabled: v })} label="Check for updates automatically" />
         </Row>
       </div>
       </div>

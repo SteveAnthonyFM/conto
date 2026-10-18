@@ -19,6 +19,10 @@ pub struct Settings {
     pub limit_pct: u8,
     /// How often CONTO re-reads usage, in minutes.
     pub poll_minutes: u32,
+    /// Look for a newer CONTO release on GitHub (at launch and about once a day).
+    pub update_check_enabled: bool,
+    /// Newest version already announced with a desktop notification, so it fires once.
+    pub last_notified_version: String,
 }
 
 impl Settings {
@@ -46,7 +50,7 @@ impl Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { always_on_top: false, notifications_enabled: true, warn_pct: 60, limit_pct: 85, poll_minutes: 5 }
+        Settings { always_on_top: false, notifications_enabled: true, warn_pct: 60, limit_pct: 85, poll_minutes: 5, update_check_enabled: true, last_notified_version: String::new() }
     }
 }
 
