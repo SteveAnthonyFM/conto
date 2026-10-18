@@ -7,6 +7,11 @@ include breaking changes.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-18
+
+### Fixed
+- **Signing in again did nothing while the old session was still valid:** the login window closed after about a second and the "Signed in until" date never changed, because the still-unexpired session cookie made CONTO think sign-in had already finished. CONTO now sets the old session aside, waits for a genuinely new one, and restores the old one if you close the window without finishing.
+
 ## [0.1.2] - 2026-09-20
 
 ### Changed

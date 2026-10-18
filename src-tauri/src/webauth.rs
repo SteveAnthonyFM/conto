@@ -216,14 +216,41 @@ pub fn sign_in(app: &AppHandle) -> Result<(), String> {
         let _ = existing.set_focus();
         return Err("already open".into());
     }
-    let login = WebviewWindowBuilder::new(app, LOGIN_LABEL, WebviewUrl::External(format!("{BASE}/login").parse().unwrap()))
+    // Set the old session aside first. While it's still unexpired, its `sessionKey` cookie is
+    // already in the store, so the wait loop below would see it immediately, close the login
+    // window within a second and leave the old expiry untouched. Clearing it forces a genuine
+    // fresh sign-in; if the user backs out, the old session is put back.
+    let previous: Vec<_> = app
+        .get_webview_window("main")
+        .and_then(|w| w.cookies_for_url(base_url()).ok())
+        .unwrap_or_default();
+    if let Some(main) = app.get_webview_window("main") {
+        for c in &previous {
+            let _ = main.delete_cookie(c.clone());
+        }
+    }
+    let restore = |app: &AppHandle| {
+        if let Some(main) = app.get_webview_window("main") {
+            for c in &previous {
+                let _ = main.set_cookie(c.clone().into_owned());
+            }
+        }
+    };
+
+    let login = match WebviewWindowBuilder::new(app, LOGIN_LABEL, WebviewUrl::External(format!("{BASE}/login").parse().unwrap()))
         .title("Sign in to Claude")
         .inner_size(480.0, 760.0)
         .center()
         // Only ever browse the web; block custom schemes a hostile page might try to open.
         .on_navigation(|u| matches!(u.scheme(), "https" | "http" | "about"))
         .build()
-        .map_err(|e| e.to_string())?;
+    {
+        Ok(w) => w,
+        Err(e) => {
+            restore(app);
+            return Err(e.to_string());
+        }
+    };
 
     let started = Instant::now();
     let result = loop {
@@ -241,6 +268,9 @@ pub fn sign_in(app: &AppHandle) -> Result<(), String> {
         }
     };
     let _ = login.close();
+    if result.is_err() {
+        restore(app);
+    }
     result
 }
 
