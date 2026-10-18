@@ -209,6 +209,26 @@ pub fn fetch_usage(app: &AppHandle, org_cache: &mut Option<String>) -> Result<Us
     }
 }
 
+/// Removes the claude.ai session from the webview's cookie store. Deleting cookies one by
+/// one is reported as successful on Windows yet leaves them in place, so verify, and if the
+/// session is still there fall back to wiping the webview's browsing data outright.
+fn clear_session(win: &tauri::WebviewWindow) {
+    let has_session = || win.cookies_for_url(base_url()).map(|cs| cs.iter().any(|c| c.name() == "sessionKey")).unwrap_or(false);
+    for c in win.cookies_for_url(base_url()).unwrap_or_default() {
+        let _ = win.delete_cookie(c.clone());
+        if let Some(d) = c.domain().filter(|d| !d.starts_with('.')) {
+            let mut dotted = c.clone().into_owned();
+            dotted.set_domain(format!(".{d}"));
+            let _ = win.delete_cookie(dotted);
+        }
+    }
+    std::thread::sleep(Duration::from_millis(300));
+    if has_session() {
+        let _ = win.clear_all_browsing_data();
+        std::thread::sleep(Duration::from_millis(500));
+    }
+}
+
 /// Opens claude.ai's real login page in its own window and waits until a session appears
 /// (or the user closes the window). Blocking — call from a worker thread.
 pub fn sign_in(app: &AppHandle) -> Result<(), String> {
@@ -225,9 +245,7 @@ pub fn sign_in(app: &AppHandle) -> Result<(), String> {
         .and_then(|w| w.cookies_for_url(base_url()).ok())
         .unwrap_or_default();
     if let Some(main) = app.get_webview_window("main") {
-        for c in &previous {
-            let _ = main.delete_cookie(c.clone());
-        }
+        clear_session(&main);
     }
     let restore = |app: &AppHandle| {
         if let Some(main) = app.get_webview_window("main") {
@@ -277,8 +295,6 @@ pub fn sign_in(app: &AppHandle) -> Result<(), String> {
 /// Removes every claude.ai cookie from CONTO's webview store.
 pub fn sign_out(app: &AppHandle) -> Result<(), String> {
     let win = app.get_webview_window("main").ok_or("main window not found")?;
-    for c in win.cookies_for_url(base_url()).map_err(|e| e.to_string())? {
-        let _ = win.delete_cookie(c);
-    }
+    clear_session(&win);
     Ok(())
 }
