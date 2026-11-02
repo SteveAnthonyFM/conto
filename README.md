@@ -50,7 +50,7 @@ tray / menu bar) and keeps the two numbers that matter up to date.
 | **Session & Weekly gauges** | Your 5-hour session and weekly limit with live percentages and reset times. Gauges go amber, then red, at thresholds you choose. |
 | **History chart** | See usage % over the last 24 hours, 7 days or 30 days — or switch to **tokens by model**, built from your local Claude Code logs. |
 | **Notifications** | A desktop alert when a gauge crosses your caution or limit level (and a heads-up before your sign-in expires). |
-| **Tray / menu-bar icon** | Shows your session % at a glance, with minimize-to-tray and launch-at-login. |
+| **Tray / menu-bar icon** | Shows your session % at a glance (and keeps updating while the window is hidden), with minimize-to-tray and launch-at-login. |
 | **Update alerts** | CONTO checks GitHub for a newer version and shows **Update available** in the footer (plus a one-time notification). Settings has a **Check now** button and a switch to turn it off. |
 | **Always on top** | Pin it over your work, or let it live quietly in the tray. Position and width are remembered. |
 
@@ -136,7 +136,7 @@ npm run desktop          # run in development
 npx tauri build          # produce an installer for your OS
 ```
 
-Releases are built by GitHub Actions when a tag like `v0.2.0` is pushed
+Releases are built by GitHub Actions when a tag like `v0.2.1` is pushed
 ([`release.yml`](.github/workflows/release.yml)); the result is a draft release to review before publishing.
 
 ## Contributing
