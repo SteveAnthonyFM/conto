@@ -14,7 +14,7 @@ Status: planning approved, no application code yet.
 | Data: history and models | Local logs at `~/.claude/projects/**/*.jsonl` for token counts by model and history backfill. |
 | Snapshots | CONTO saves a reading every 5 minutes to a local store to build the utilization-over-time chart. |
 | Plan tier | Chosen on first run (Pro / Max 5x / Max 20x), changeable in Settings. Per-model weekly bars appear only if the plan reports them. |
-| Polling | Every 5 minutes, plus a manual Refresh button. |
+| Polling | Every 5 minutes (configurable), plus a manual Refresh button. Runs on a native background thread, not in the webview, so the tray readout and alerts keep updating while the window is hidden. |
 | Licensing | MIT (LICENSE added for the 0.1.0 testing release). |
 | CI | GitHub Actions builds macOS and Windows installers on version tags. Installers are unsigned for now. |
 

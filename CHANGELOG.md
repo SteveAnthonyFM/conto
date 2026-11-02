@@ -7,6 +7,19 @@ include breaking changes.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-02
+
+### Fixed
+- **Menu-bar / tray readout and alerts froze while the window was hidden:** the refresh timer lived in the webview, which the OS suspends once the window is hidden, so the session % in the menu bar only caught up after you clicked the icon. Threshold notifications, the sign-in expiry reminder and the daily update check stalled the same way.
+
+### Changed
+- Polling now runs on a native background thread in the Rust app and honours the refresh interval from Settings (changes apply without a restart). It skips a poll when the card refreshed recently, so the two never double up. The card shows new readings it is sent (`usage-updated` / `update-info` events) instead of running its own timers; the launch refresh and the Refresh button work as before.
+- The daily update check moved to the same background thread.
+
+### Tested
+- macOS: with the card hidden, the dev build kept saving new readings at the configured interval.
+- Not yet checked: alerts firing while hidden, and Windows (the change uses only standard threads and Tauri's cross-platform events).
+
 ## [0.2.0] - 2026-10-18
 
 ### Added
@@ -69,5 +82,6 @@ have not yet been tested on real hardware. Installers are unsigned.
 - Installers are unsigned; macOS and Windows will show a security warning on first launch.
 - The macOS icon looks slightly different in Finder list view than in the Dock.
 
-[Unreleased]: https://github.com/SteveAnthonyFM/conto/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/SteveAnthonyFM/conto/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/SteveAnthonyFM/conto/releases/tag/v0.2.1
 [0.1.2]: https://github.com/SteveAnthonyFM/conto/releases/tag/v0.1.2
