@@ -12,11 +12,14 @@ use credentials::CredError;
 use serde::Serialize;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use tauri::{Manager, WindowEvent};
+use tauri::{Emitter, Manager, WindowEvent};
 use usage::{FetchError, Usage};
 
 /// Manual refreshes within this window return the cached reading instead of re-calling the API.
 const MIN_REFETCH: Duration = Duration::from_secs(15);
+
+/// How often the background poller looks for a newer release.
+const UPDATE_CHECK_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
 
 #[derive(Serialize, Clone, Debug, PartialEq)]
 #[serde(tag = "kind", content = "message", rename_all = "snake_case")]
@@ -159,16 +162,63 @@ async fn refresh_usage(app: tauri::AppHandle, force: bool, user_agent: Option<St
         .await
         .map_err(|e| e.to_string())?;
 
+    publish(&app, &report);
+    Ok(report)
+}
+
+/// Everything that follows a poll: the tray readout and the threshold / expiry notifications.
+/// Shared by the frontend's refresh command and the background poller below.
+fn publish(app: &tauri::AppHandle, report: &UsageReport) {
     let state = app.state::<AppState>();
     if let Some(t) = state.tray.lock().unwrap().as_ref() {
-        tray::update(t, &report);
+        tray::update(t, report);
     }
-    let settings = settings::load(&settings::file_in(&data_dir(&app)));
+    let settings = settings::load(&settings::file_in(&data_dir(app)));
     if let (Status::Ok, Some(u)) = (&report.status, &report.usage) {
-        notify::check(&app, &mut state.levels.lock().unwrap(), u, &settings);
+        notify::check(app, &mut state.levels.lock().unwrap(), u, &settings);
     }
-    notify::check_session_expiry(&app, &mut state.levels.lock().unwrap(), report.session_expires_at, now_secs(), &settings);
-    Ok(report)
+    notify::check_session_expiry(app, &mut state.levels.lock().unwrap(), report.session_expires_at, now_secs(), &settings);
+}
+
+/// Polls on a native thread so the menu-bar / tray readout and the alerts keep updating while
+/// the window is hidden. A hidden webview's timers get suspended by the OS, so they can't be
+/// relied on for this. New readings reach the card through the `usage-updated` event.
+fn spawn_background_poller(app: tauri::AppHandle) {
+    const TICK: Duration = Duration::from_secs(20);
+    std::thread::spawn(move || {
+        let started = Instant::now();
+        let mut last_run: Option<Instant> = None;
+        let mut last_update_check: Option<Instant> = None;
+        loop {
+            std::thread::sleep(TICK);
+            let state = app.state::<AppState>();
+            let file = settings::file_in(&data_dir(&app));
+            let s = settings::load(&file);
+            let interval = Duration::from_secs(u64::from(s.poll_minutes) * 60);
+
+            // Count the card's own refreshes too, so the two never double up.
+            let last_attempt = state.cache.lock().unwrap().last_attempt;
+            let latest = [last_run, last_attempt].into_iter().flatten().max();
+            let due = match latest {
+                Some(t) => t.elapsed() >= interval,
+                // Nothing yet: give the card a moment to do its launch refresh first.
+                None => started.elapsed() >= Duration::from_secs(30),
+            };
+            if due {
+                last_run = Some(Instant::now());
+                let report = refresh(Some(&app), &state, &store::file_in(&data_dir(&app)), false);
+                publish(&app, &report);
+                let _ = app.emit("usage-updated", &report);
+            }
+
+            if s.update_check_enabled && last_update_check.map_or(true, |t| t.elapsed() >= UPDATE_CHECK_EVERY) {
+                last_update_check = Some(Instant::now());
+                if let Ok(info) = run_update_check(&app, true) {
+                    let _ = app.emit("update-info", &info);
+                }
+            }
+        }
+    });
 }
 
 /// Opens the claude.ai sign-in window; resolves once signed in ("cancelled" if the user closes it).
@@ -234,15 +284,15 @@ async fn set_autostart(app: tauri::AppHandle, value: bool) -> Result<bool, Strin
 
 /// Looks for a newer release. `auto` is the background check: it honours the "check
 /// automatically" setting and announces a given version with a desktop notification only once.
-#[tauri::command]
-async fn check_for_updates(app: tauri::AppHandle, auto: bool) -> Result<update::UpdateInfo, String> {
-    let file = settings::file_in(&data_dir(&app));
+/// Blocking: asks GitHub for the newest release. See `check_for_updates`.
+fn run_update_check(app: &tauri::AppHandle, auto: bool) -> Result<update::UpdateInfo, String> {
+    let file = settings::file_in(&data_dir(app));
     let s = settings::load(&file);
     if auto && !s.update_check_enabled {
         return Err("update checks are turned off".into());
     }
     let current = app.package_info().version.to_string();
-    let info = tauri::async_runtime::spawn_blocking(move || update::check(&current)).await.map_err(|e| e.to_string())??;
+    let info = update::check(&current)?;
     if auto && info.available && s.notifications_enabled && s.last_notified_version != info.latest {
         use tauri_plugin_notification::NotificationExt;
         let _ = app
@@ -255,6 +305,13 @@ async fn check_for_updates(app: tauri::AppHandle, auto: bool) -> Result<update::
         let _ = settings::save(&file, &next);
     }
     Ok(info)
+}
+
+/// Looks for a newer release. `auto` is the background check: it honours the "check
+/// automatically" setting and announces a given version with a desktop notification only once.
+#[tauri::command]
+async fn check_for_updates(app: tauri::AppHandle, auto: bool) -> Result<update::UpdateInfo, String> {
+    tauri::async_runtime::spawn_blocking(move || run_update_check(&app, auto)).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -320,6 +377,8 @@ pub fn run() {
             let (tray_icon, launch_item) = tray::build(handle)?;
             *app.state::<AppState>().launch_item.lock().unwrap() = Some(launch_item);
             *app.state::<AppState>().tray.lock().unwrap() = Some(tray_icon);
+
+            spawn_background_poller(handle.clone());
 
             Ok(())
         })

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { listen } from '@tauri-apps/api/event'
 import { AmbientWave } from './components/AmbientWave'
 import { ExpandChevron } from './components/ExpandChevron'
 import { Gauge } from './components/Gauge'
@@ -16,7 +17,6 @@ import { animateWindowResize, getLogicalWindowSize, relaxWindowHeightLimits, set
 import { LogicalSize } from '@tauri-apps/api/dpi'
 
 const DEFAULT_SETTINGS: Settings = { always_on_top: false, notifications_enabled: true, warn_pct: 60, limit_pct: 85, poll_minutes: 5, update_check_enabled: true, last_notified_version: '' }
-const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000
 
 // Each screen has its own allowed window height, so the window never has dead space or
 // clipped content and the user never has to re-adjust it after switching screens:
@@ -101,18 +101,22 @@ export function App() {
   }, [])
   useEffect(() => {
     if (!settings.update_check_enabled) return
+    // Launch check only; the daily re-check runs in the Rust background poller (hidden-window safe).
     void runUpdateCheck(true)
-    const id = window.setInterval(() => void runUpdateCheck(true), UPDATE_CHECK_INTERVAL_MS)
-    return () => window.clearInterval(id)
   }, [settings.update_check_enabled, runUpdateCheck])
   const downloadUpdate = useCallback(() => {
     if (updateInfo) void openReleasePage(updateInfo.url)
   }, [updateInfo])
 
+  // Polling runs natively in Rust (so the tray readout and alerts keep updating while the
+  // window is hidden, when the OS suspends webview timers); we just show what it reports.
   useEffect(() => {
-    const id = window.setInterval(() => void load(false), settings.poll_minutes * 60 * 1000)
-    return () => window.clearInterval(id)
-  }, [load, settings.poll_minutes])
+    const subs = [
+      listen<UsageReport>('usage-updated', (e) => setReport(e.payload)),
+      listen<UpdateInfo>('update-info', (e) => setUpdateInfo(e.payload)),
+    ]
+    return () => subs.forEach((p) => void p.then((off) => off()))
+  }, [])
 
   // Always on Top is applied and persisted on the Rust side (set_always_on_top), so it
   // survives a relaunch — this just seeds the toggle's initial state from disk.
