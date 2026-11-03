@@ -222,17 +222,33 @@ fn spawn_background_poller(app: tauri::AppHandle) {
 }
 
 /// Opens the claude.ai sign-in window; resolves once signed in ("cancelled" if the user closes it).
-#[tauri::command]
-async fn sign_in(app: tauri::AppHandle) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || webauth::sign_in(&app)).await.map_err(|e| e.to_string())?
+/// Drops everything remembered about the signed-in account, so a sign-out or a switch to
+/// another account never keeps showing the previous one's numbers.
+fn forget_account(app: &tauri::AppHandle) {
+    let state = app.state::<AppState>();
+    let mut c = state.cache.lock().unwrap();
+    c.org_id = None;
+    c.usage = None;
+    c.fetched_at = None;
+    c.subscription_type = None;
+    c.session_expires_at = None;
+    c.last_attempt = None;
 }
 
-/// Forgets the claude.ai web session (cookies) and the cached organization id.
+#[tauri::command]
+async fn sign_in(app: tauri::AppHandle) -> Result<(), String> {
+    let app2 = app.clone();
+    tauri::async_runtime::spawn_blocking(move || webauth::sign_in(&app2)).await.map_err(|e| e.to_string())??;
+    forget_account(&app);
+    Ok(())
+}
+
+/// Forgets the claude.ai web session (cookies) and everything cached about the account.
 #[tauri::command]
 async fn sign_out(app: tauri::AppHandle) -> Result<(), String> {
     let app2 = app.clone();
     tauri::async_runtime::spawn_blocking(move || webauth::sign_out(&app2)).await.map_err(|e| e.to_string())??;
-    app.state::<AppState>().cache.lock().unwrap().org_id = None;
+    forget_account(&app);
     Ok(())
 }
 

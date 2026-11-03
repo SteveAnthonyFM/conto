@@ -9,7 +9,7 @@
 use crate::usage::{parse_usage, FetchError, Usage};
 use std::sync::{mpsc, Mutex};
 use std::time::{Duration, Instant};
-use tauri::webview::PageLoadEvent;
+use tauri::webview::{Cookie, PageLoadEvent};
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 
 const BASE: &str = "https://claude.ai";
@@ -209,12 +209,26 @@ pub fn fetch_usage(app: &AppHandle, org_cache: &mut Option<String>) -> Result<Us
     }
 }
 
-/// Removes the claude.ai session from the webview's cookie store. Deleting cookies one by
-/// one is reported as successful on Windows yet leaves them in place, so verify, and if the
-/// session is still there fall back to wiping the webview's browsing data outright.
+fn is_claude_domain(domain: &str) -> bool {
+    let d = domain.trim_start_matches('.').to_ascii_lowercase();
+    d == "claude.ai" || d.ends_with(".claude.ai")
+}
+
+/// Every claude.ai cookie in the store, including `.claude.ai` ones. `cookies_for_url` alone
+/// misses those on macOS, where it only returns cookies whose domain is exactly `claude.ai`.
+fn claude_cookies(win: &tauri::WebviewWindow) -> Vec<Cookie<'static>> {
+    match win.cookies() {
+        Ok(all) => all.into_iter().filter(|c| c.domain().is_some_and(is_claude_domain)).collect(),
+        Err(_) => win.cookies_for_url(base_url()).unwrap_or_default(),
+    }
+}
+
+/// Removes every claude.ai cookie from the webview's cookie store. Deleting cookies one by
+/// one is reported as successful on Windows yet leaves them in place, so verify, and if any
+/// are still there fall back to wiping the webview's browsing data outright.
 fn clear_session(win: &tauri::WebviewWindow) {
-    let has_session = || win.cookies_for_url(base_url()).map(|cs| cs.iter().any(|c| c.name() == "sessionKey")).unwrap_or(false);
-    for c in win.cookies_for_url(base_url()).unwrap_or_default() {
+    let has_session = || !claude_cookies(win).is_empty();
+    for c in claude_cookies(win) {
         let _ = win.delete_cookie(c.clone());
         if let Some(d) = c.domain().filter(|d| !d.starts_with('.')) {
             let mut dotted = c.clone().into_owned();
@@ -229,6 +243,25 @@ fn clear_session(win: &tauri::WebviewWindow) {
     }
 }
 
+/// Where the login window may go: secure web pages only. Single sign-on can pass through any
+/// identity provider, so hosts aren't allowlisted, but custom schemes, plain http and anything
+/// on this machine are refused (on Windows CONTO's own UI is served from `tauri.localhost`).
+fn login_may_visit(u: &Url) -> bool {
+    match u.scheme() {
+        "about" => true,
+        "https" => {
+            let Some(host) = u.host_str() else { return false };
+            let host = host.trim_start_matches('[').trim_end_matches(']').trim_end_matches('.').to_ascii_lowercase();
+            match host.parse::<std::net::IpAddr>() {
+                Ok(std::net::IpAddr::V4(ip)) => !(ip.is_loopback() || ip.is_private() || ip.is_link_local() || ip.is_unspecified()),
+                Ok(std::net::IpAddr::V6(ip)) => !(ip.is_loopback() || ip.is_unspecified()),
+                Err(_) => host != "localhost" && !host.ends_with(".localhost"),
+            }
+        }
+        _ => false,
+    }
+}
+
 /// Opens claude.ai's real login page in its own window and waits until a session appears
 /// (or the user closes the window). Blocking — call from a worker thread.
 pub fn sign_in(app: &AppHandle) -> Result<(), String> {
@@ -240,10 +273,7 @@ pub fn sign_in(app: &AppHandle) -> Result<(), String> {
     // already in the store, so the wait loop below would see it immediately, close the login
     // window within a second and leave the old expiry untouched. Clearing it forces a genuine
     // fresh sign-in; if the user backs out, the old session is put back.
-    let previous: Vec<_> = app
-        .get_webview_window("main")
-        .and_then(|w| w.cookies_for_url(base_url()).ok())
-        .unwrap_or_default();
+    let previous: Vec<_> = app.get_webview_window("main").map(|w| claude_cookies(&w)).unwrap_or_default();
     if let Some(main) = app.get_webview_window("main") {
         clear_session(&main);
     }
@@ -259,8 +289,7 @@ pub fn sign_in(app: &AppHandle) -> Result<(), String> {
         .title("Sign in to Claude")
         .inner_size(480.0, 760.0)
         .center()
-        // Only ever browse the web; block custom schemes a hostile page might try to open.
-        .on_navigation(|u| matches!(u.scheme(), "https" | "http" | "about"))
+        .on_navigation(login_may_visit)
         .build()
     {
         Ok(w) => w,
@@ -292,9 +321,51 @@ pub fn sign_in(app: &AppHandle) -> Result<(), String> {
     result
 }
 
-/// Removes every claude.ai cookie from CONTO's webview store.
+/// Removes every claude.ai cookie from CONTO's webview store. Local only: claude.ai has no
+/// official sign-out endpoint for apps, so the session itself lapses when it expires.
 pub fn sign_out(app: &AppHandle) -> Result<(), String> {
     let win = app.get_webview_window("main").ok_or("main window not found")?;
     clear_session(&win);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn may(u: &str) -> bool {
+        login_may_visit(&u.parse().unwrap())
+    }
+
+    #[test]
+    fn login_window_allows_the_web() {
+        assert!(may("https://claude.ai/login"));
+        assert!(may("https://accounts.google.com/o/oauth2/auth?x=1"));
+        assert!(may("https://example.okta.com/sso"));
+        assert!(may("about:blank"));
+    }
+
+    #[test]
+    fn login_window_refuses_local_and_insecure_pages() {
+        assert!(!may("http://claude.ai/login"));
+        assert!(!may("https://tauri.localhost/"));
+        assert!(!may("http://tauri.localhost/"));
+        assert!(!may("tauri://localhost/"));
+        assert!(!may("https://localhost:1420/"));
+        assert!(!may("https://LOCALHOST./"));
+        assert!(!may("https://127.0.0.1/"));
+        assert!(!may("https://192.168.1.1/"));
+        assert!(!may("https://[::1]/"));
+        assert!(!may("file:///etc/passwd"));
+        assert!(!may("claude://open"));
+    }
+
+    #[test]
+    fn claude_domains_include_dotted_and_subdomains() {
+        assert!(is_claude_domain("claude.ai"));
+        assert!(is_claude_domain(".claude.ai"));
+        assert!(is_claude_domain("api.claude.ai"));
+        assert!(!is_claude_domain("notclaude.ai"));
+        assert!(!is_claude_domain("claude.ai.evil.example"));
+    }
 }
