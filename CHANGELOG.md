@@ -7,6 +7,23 @@ include breaking changes.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-03
+
+Security hardening from a full audit (Cloudflare security-audit skill, no vulnerabilities found).
+
+### Security
+- **App commands are permission-gated:** CONTO's own commands are now declared to Tauri and granted only to the main window, so the sign-in and background windows that load claude.ai can never call them, even in edge cases the framework default didn't cover explicitly.
+- **Content Security Policy:** the main window now runs under a strict CSP (local files only; no remote scripts, frames or forms).
+- **Sign-in window stays on the web:** it now refuses plain-http pages, CONTO's own pages and other addresses on this machine. Any secure site is still allowed, so single sign-on through Google, Apple or a company login keeps working.
+- **GitHub Actions pinned:** every workflow action is pinned to an exact commit, CI runs with a read-only token, and the release build no longer saves a build cache.
+
+### Fixed
+- **Sign-out now removes every claude.ai cookie.** On macOS the `.claude.ai` ones were left behind. Sign-in and sign-out also forget the cached usage, plan and organization, so the previous account's numbers no longer linger.
+- **The menu-bar readout clears when there's no reading** (for example right after signing out with no Claude Code login to fall back on), instead of keeping the last percentage.
+
+### Tested
+- macOS: unit tests (22) pass, including new ones for the sign-in navigation rules and cookie matching. A test build loaded normally under the new CSP, and Settings, Refresh, Sign Out and Sign In all worked.
+
 ## [0.2.1] - 2026-11-02
 
 ### Fixed

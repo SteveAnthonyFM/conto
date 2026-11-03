@@ -70,9 +70,15 @@ pub fn build(app: &AppHandle) -> tauri::Result<(TrayIcon, CheckMenuItem<tauri::W
 
 /// Reflects the latest usage in the tray: a percentage next to the icon on macOS (there's
 /// no room for text on Windows/Linux tray icons, so they only get the tooltip), plus a
-/// fuller breakdown in the hover tooltip on every platform.
+/// fuller breakdown in the hover tooltip on every platform. With no reading at all (signed
+/// out, nothing to fall back on) the old numbers are cleared rather than left showing.
 pub fn update(tray: &TrayIcon, report: &UsageReport) {
-    let Some(usage) = &report.usage else { return };
+    let Some(usage) = &report.usage else {
+        #[cfg(target_os = "macos")]
+        let _ = tray.set_title(None::<&str>);
+        let _ = tray.set_tooltip(Some("CONTO"));
+        return;
+    };
     let five_hour = usage.five_hour.as_ref().map(|w| w.utilization.round() as i64);
 
     #[cfg(target_os = "macos")]

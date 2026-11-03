@@ -11,5 +11,21 @@ fn main() {
     } else {
         tauri_build::WindowsAttributes::new()
     };
-    tauri_build::try_build(tauri_build::Attributes::new().windows_attributes(attrs)).expect("failed to run tauri-build")
+    // Declaring the app's commands makes them permission-gated like plugin commands: only windows
+    // whose capability grants `allow-<command>` (just `main`, see capabilities/default.json) can call them.
+    let app = tauri_build::AppManifest::new().commands(&[
+        "refresh_usage",
+        "sign_in",
+        "sign_out",
+        "get_snapshots",
+        "get_local_usage",
+        "get_settings",
+        "set_always_on_top",
+        "update_settings",
+        "get_autostart",
+        "set_autostart",
+        "check_for_updates",
+        "open_release_page",
+    ]);
+    tauri_build::try_build(tauri_build::Attributes::new().windows_attributes(attrs).app_manifest(app)).expect("failed to run tauri-build")
 }
